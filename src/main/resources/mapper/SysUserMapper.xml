@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- namespace 必须与 Mapper 接口全限定名一致，否则 MapperScanner 绑定失败 -->
+<mapper namespace="com.monahub.mapper.SysUserMapper">
+
+    <resultMap id="userMap" type="com.monahub.entity.SysUser">
+        <id property="id" column="id"/>
+        <result property="username" column="username"/>
+        <result property="password" column="password"/>
+        <result property="salt" column="salt"/>
+        <result property="realName" column="real_name"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <!-- 登录查询：只按用户名取一行，口令比对在 Service 里做 -->
+    <select id="findByUsername" resultMap="userMap">
+        SELECT id, username, password, salt, real_name, create_time
+        FROM sys_user
+        WHERE username = #{username}
+    </select>
+
+</mapper>

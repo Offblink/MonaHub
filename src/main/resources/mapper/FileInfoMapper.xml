@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monahub.mapper.FileInfoMapper">
+
+    <resultMap id="fileMap" type="com.monahub.entity.FileInfo">
+        <id property="id" column="id"/>
+        <result property="originName" column="origin_name"/>
+        <result property="storeName" column="store_name"/>
+        <result property="filePath" column="file_path"/>
+        <result property="ext" column="ext"/>
+        <result property="fileSize" column="file_size"/>
+        <result property="contentType" column="content_type"/>
+        <result property="uploaderId" column="uploader_id"/>
+        <result property="createTime" column="create_time"/>
+        <result property="status" column="status"/>
+        <result property="downloadCount" column="download_count"/>
+    </resultMap>
+
+    <!-- 元信息入库；useGeneratedKeys 回填自增主键 -->
+    <insert id="insert" parameterType="com.monahub.entity.FileInfo"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO file_info
+            (origin_name, store_name, file_path, ext, file_size,
+             content_type, uploader_id, create_time, status, download_count)
+        VALUES
+            (#{originName}, #{storeName}, #{filePath}, #{ext}, #{fileSize},
+             #{contentType}, #{uploaderId}, #{createTime}, #{status}, #{downloadCount})
+    </insert>
+
+    <!-- 下载：id + uploader_id 双条件，越权查询返回 null -->
+    <select id="selectByIdAndUploader" resultMap="fileMap">
+        SELECT id, origin_name, store_name, file_path, ext, file_size,
+               content_type, uploader_id, create_time, status, download_count
+        FROM file_info
+        WHERE id = #{id}
+          AND uploader_id = #{uploaderId}
+    </select>
+
+    <!-- 列表：本人 + 可选分类扩展名 + 可选关键字，全部走 #{} 预编译参数 -->
+    <select id="selectByUploader" resultMap="fileMap">
+        SELECT id, origin_name, store_name, file_path, ext, file_size,
+               content_type, uploader_id, create_time, status, download_count
+        FROM file_info
+        WHERE uploader_id = #{uploaderId}
+        <if test="exts != null and exts.size() > 0">
+            AND ext IN
+            <foreach collection="exts" item="e" open="(" separator="," close=")">#{e}</foreach>
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND origin_name LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        ORDER BY create_time DESC, id DESC
+    </select>
+
+    <select id="countByExt" resultType="com.monahub.dto.ExtCount">
+        SELECT ext AS ext, COUNT(*) AS cnt
+        FROM file_info
+        WHERE uploader_id = #{uploaderId}
+        GROUP BY ext
+    </select>
+
+    <select id="countByUploader" resultType="long">
+        SELECT COUNT(*) FROM file_info WHERE uploader_id = #{uploaderId}
+    </select>
+
+    <select id="countByUploaderSince" resultType="long">
+        SELECT COUNT(*) FROM file_info
+        WHERE uploader_id = #{uploaderId} AND create_time &gt;= #{since}
+    </select>
+
+    <select id="sumDownloadCount" resultType="long">
+        SELECT COALESCE(SUM(download_count), 0)
+        FROM file_info
+        WHERE uploader_id = #{uploaderId}
+    </select>
+
+    <!-- 冻结/解冻：WHERE 带 uploader_id，越权改不动别人的记录 -->
+    <update id="updateStatus">
+        UPDATE file_info
+        SET status = #{status}
+        WHERE id = #{id}
+          AND uploader_id = #{uploaderId}
+    </update>
+
+    <update id="incrementDownloadCount">
+        UPDATE file_info
+        SET download_count = download_count + 1
+        WHERE id = #{id}
+    </update>
+
+</mapper>

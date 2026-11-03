@@ -1,0 +1,20 @@
+# ===== 构建产物 =====
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.war
+
+# ===== IDEA / 编辑器 =====
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.vscode/
+
+# ===== 本机口令（真实数据库口令，绝不入库）=====
+src/main/resources/common/db.properties
+
+# ===== 上传文件与运行日志 =====
+upload/
+logs/
+*.log
