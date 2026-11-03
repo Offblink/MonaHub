@@ -160,7 +160,7 @@
     </section>
 
     <!-- ==================== 文件列表 ==================== -->
-    <section class="list card" aria-label="我的文件">
+    <section class="list card" id="fileList" aria-label="我的文件">
         <c:choose>
             <c:when test="${empty files}">
                 <div class="empty">

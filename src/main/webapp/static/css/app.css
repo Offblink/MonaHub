@@ -909,6 +909,11 @@ button {
 .list {
     padding: 6px 6px 10px;
     overflow: hidden;
+    transition: opacity 0.15s;
+}
+
+.list.is-loading {
+    opacity: 0.55;
 }
 
 .list-head,

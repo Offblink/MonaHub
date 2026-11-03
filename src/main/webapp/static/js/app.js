@@ -153,13 +153,15 @@
         }
     }
 
-    /* ---------------- 主按钮光斑（liquid-button） ---------------- */
-    Array.prototype.forEach.call(document.querySelectorAll('.btn-primary'), function (btn) {
-        btn.addEventListener('pointermove', function (event) {
-            var rect = btn.getBoundingClientRect();
-            btn.style.setProperty('--mx', ((event.clientX - rect.left) / rect.width * 100) + '%');
-            btn.style.setProperty('--my', ((event.clientY - rect.top) / rect.height * 100) + '%');
-        });
+    /* ---------------- 主按钮光斑（liquid-button，委托给 document） ---------------- */
+    document.addEventListener('pointermove', function (event) {
+        var btn = event.target && event.target.closest ? event.target.closest('.btn-primary') : null;
+        if (!btn) {
+            return;
+        }
+        var rect = btn.getBoundingClientRect();
+        btn.style.setProperty('--mx', ((event.clientX - rect.left) / rect.width * 100) + '%');
+        btn.style.setProperty('--my', ((event.clientY - rect.top) / rect.height * 100) + '%');
     });
 
     /* ---------------- 登录页小交互 ---------------- */
@@ -467,6 +469,91 @@
         }
     }
 
+    /* ---------------- 搜索：输入即筛选（250ms 防抖，局部刷新） ---------------- */
+    var searchForm = document.querySelector('.search');
+    if (searchForm) {
+        setupLiveSearch(searchForm);
+    }
+
+    function setupLiveSearch(form) {
+        var input = form.querySelector('input[name="q"]');
+        var list = document.getElementById('fileList');
+        if (!input || !list) {
+            return;
+        }
+        var categoryInput = form.querySelector('input[name="category"]');
+        var sizeInput = form.querySelector('input[name="size"]');
+
+        var timer = null;
+        var controller = null;
+        var seq = 0;
+
+        function runSearch() {
+            var params = new URLSearchParams();
+            params.set('category', categoryInput ? categoryInput.value : 'all');
+            params.set('size', sizeInput ? sizeInput.value : '6');
+            params.set('page', '1');
+            params.set('q', input.value);
+            var url = form.action + '?' + params.toString();
+
+            if (controller) {
+                controller.abort();
+            }
+            controller = new AbortController();
+            var current = ++seq;
+            list.classList.add('is-loading');
+
+            fetch(url, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                signal: controller.signal
+            }).then(function (response) {
+                return response.text();
+            }).then(function (html) {
+                if (current !== seq) {
+                    return;
+                }
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var fresh = doc.getElementById('fileList');
+                if (!fresh) {
+                    return;
+                }
+                list.innerHTML = fresh.innerHTML;
+                // 地址栏同步，刷新/收藏后仍是同一个筛选
+                window.history.replaceState(null, '', url);
+                if (canAnimate) {
+                    gsap.from(list.querySelectorAll('.row'), {
+                        y: 10,
+                        opacity: 0,
+                        duration: 0.35,
+                        stagger: 0.03,
+                        clearProps: 'transform,opacity'
+                    });
+                }
+            }).catch(function (error) {
+                if (error.name !== 'AbortError') {
+                    console.warn('搜索失败', error);
+                }
+            }).finally(function () {
+                if (current === seq) {
+                    list.classList.remove('is-loading');
+                }
+            });
+        }
+
+        input.addEventListener('input', function () {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(runSearch, 250);
+        });
+
+        // 有脚本时回车也走局部刷新；无脚本时表单照常 GET 提交
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            window.clearTimeout(timer);
+            runSearch();
+        });
+    }
+
     /* ---------------- 冻结 / 解冻 / 删除 / 重命名 共用一个模态 ---------------- */
     var modal = document.getElementById('actionModal');
     if (modal) {
@@ -510,8 +597,9 @@
             fileEl.hidden = false;
         }
 
-        Array.prototype.forEach.call(document.querySelectorAll('.js-action-form'), function (form) {
-            form.addEventListener('submit', function (event) {
+        document.addEventListener('submit', function (event) {
+            var form = event.target && event.target.closest ? event.target.closest('.js-action-form') : null;
+            if (form) {
                 event.preventDefault();
                 pendingForm = form;
                 mode = form.dataset.kind || 'freeze';
@@ -534,13 +622,13 @@
                 hint.hidden = true;
                 okBtn.textContent = '确认' + action;
                 openModal();
-            });
-        });
+                return;
+            }
 
-        Array.prototype.forEach.call(document.querySelectorAll('.js-rename-form'), function (form) {
-            form.addEventListener('submit', function (event) {
+            var renameForm = event.target && event.target.closest ? event.target.closest('.js-rename-form') : null;
+            if (renameForm) {
                 event.preventDefault();
-                pendingForm = form;
+                pendingForm = renameForm;
                 mode = 'rename';
 
                 title.textContent = '重命名文件';
@@ -548,13 +636,13 @@
                 fileEl.textContent = '';
                 fileEl.hidden = true;
                 input.hidden = false;
-                input.value = form.dataset.file || '';
+                input.value = renameForm.dataset.file || '';
                 hint.hidden = false;
-                hint.textContent = '扩展名保持 .' + (form.dataset.ext || '');
+                hint.textContent = '扩展名保持 .' + (renameForm.dataset.ext || '');
                 okBtn.textContent = '保存';
                 setConfirmStyle('primary');
                 openModal();
-            });
+            }
         });
 
         cancelBtn.addEventListener('click', closeModal);
