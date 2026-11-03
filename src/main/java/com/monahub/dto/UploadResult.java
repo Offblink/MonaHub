@@ -8,15 +8,28 @@ public class UploadResult {
 
     private String name;
     private boolean ok;
+    /** true = 内容 MD5 与已有记录相同，本次没有落盘也没有入库。 */
+    private boolean duplicate;
     private String message;
 
     public UploadResult() {
     }
 
     public UploadResult(String name, boolean ok, String message) {
+        this(name, ok, false, message);
+    }
+
+    public UploadResult(String name, boolean ok, boolean duplicate, String message) {
         this.name = name;
         this.ok = ok;
+        this.duplicate = duplicate;
         this.message = message;
+    }
+
+    /** 重复上传：跳过落盘/入库，只回一条提示。 */
+    public static UploadResult duplicate(String name, String existingName) {
+        return new UploadResult(name, false, true,
+                "与已提交的「" + existingName + "」内容相同，已跳过重复上传");
     }
 
     public String getName() {
@@ -29,6 +42,14 @@ public class UploadResult {
 
     public boolean isOk() {
         return ok;
+    }
+
+    public boolean isDuplicate() {
+        return duplicate;
+    }
+
+    public void setDuplicate(boolean duplicate) {
+        this.duplicate = duplicate;
     }
 
     public void setOk(boolean ok) {

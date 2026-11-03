@@ -4,6 +4,7 @@
 在任务书必做项（登录 / 拦截器 / 上传 / 列表 / 下载）之上，实现了老师口头加料与 F5：
 
 - 选择即上传：同时多文件，服务端**有界线程池并发落盘**，逐文件独立结果与失败原因
+- **MD5 重复上传去重**：同一账号已有相同内容时跳过（不落盘、不入库），并提示与哪个文件重复
 - 文件按 **文档 / 图片 / 压缩包** 分类筛选 + 文件名搜索 + **分页**（MyBatis-Plus 分页插件，SQL 仍在 XML）
 - 上传者可**冻结 / 解冻 / 重命名 / 删除**自己的文件（删除为逻辑删除）
 - **下载次数统计** + AOP 下载日志（F5）
@@ -44,7 +45,8 @@ MonaHub/
 ├─ sql/
 │  ├─ 01_schema.sql            # 建库建表（sys_user / file_info / download_log）
 │  ├─ 02_data.sql              # 演示账号（BCrypt 哈希，可重复执行）
-│  └─ 03_migrate_bcrypt_soft_delete.sql  # 旧库增量迁移（已有库才需要）
+│  ├─ 03_migrate_bcrypt_soft_delete.sql  # 旧库增量迁移（已有库才需要）
+│  └─ 04_add_md5.sql            # 旧库补 md5 列（已有库才需要）
 ├─ docs/
 │  └─ SSM实训-设计方案与规格.md  # 设计规格（动手前定稿）
 └─ src/
@@ -151,6 +153,9 @@ registry.addInterceptor(new LoginInterceptor())
 1. **大小**：`CommonsMultipartResolver` 单文件 10MB + Service 二次校验（不信任前端）。
 2. **类型**：扩展名白名单 `pdf/jpg/jpeg/png/doc/docx/zip`，来自 `app.properties`。
 3. **重命名**：`UUID + 扩展名` 落盘；用户原始名只进数据库 `origin_name`。
+4. **去重（MD5）**：上传前对内容算 MD5，同一账号下 `deleted=0` 的记录里命中即直接返回
+   「与已提交的『xxx』内容相同，已跳过重复上传」——**不落盘、不入库**，所以不需要事后回滚/删文件；
+   已逻辑删除的记录不参与去重（删掉后允许重新上传）。
 
 目录规则：`<upload.root>/<username>/<yyyy>/<MM>/`，避免单目录堆积。
 `file_path` 存**相对路径**，绝对根只来自配置。
@@ -204,7 +209,7 @@ fileId → WHERE id=? AND uploader_id=? → 冻结判断 → 磁盘存在判断 
 | 表 | 关键字段 | 说明 |
 |---|---|---|
 | `sys_user` | `username`(唯一)、`password`(72)、`salt`(32，兼容位)、`real_name` | 口令为 BCrypt 哈希（自带盐），`salt` 写空串 |
-| `file_info` | `origin_name`、`store_name`、`file_path`、`ext`、`file_size`、`content_type`、`uploader_id`、`create_time`、`status`、`deleted`、`download_count` | `status`：1 正常 / 0 冻结；`deleted`：0 正常 / 1 逻辑删除；`idx_uploader_time` 支撑列表 |
+| `file_info` | `origin_name`、`store_name`、`file_path`、`ext`、`md5`、`file_size`、`content_type`、`uploader_id`、`create_time`、`status`、`deleted`、`download_count` | `status`：1 正常 / 0 冻结；`deleted`：0 正常 / 1 逻辑删除；`idx_uploader_time` 支撑列表，`idx_uploader_md5` 支撑去重 |
 | `download_log` | `file_id`、`downloader_id`、`download_time`、`ip` | F5，AOP 写入 |
 
 磁盘存文件、数据库存元信息；**没有 BLOB 字段**。
@@ -270,7 +275,7 @@ cmp 作业.pdf downloaded.pdf && echo BYTES_OK
 
 | 项 | 结果 |
 |---|---|
-| `mvn test` | **23 / 23 通过**（单元 + MySQL 集成） |
+| `mvn test` | **24 / 24 通过**（单元 + MySQL 集成） |
 | 未登录 `/files` | 302 → `/monahub/login` |
 | 中文名 PDF + PNG 并发上传 | 2 成功入库落盘；`.exe` 被服务端拒绝并给出原因 |
 | 下载 | 200，`filename*=UTF-8''…`，字节与源文件一致，`download_count` +1，`download_log` +1 |
@@ -281,6 +286,7 @@ cmp 作业.pdf downloaded.pdf && echo BYTES_OK
 | 重命名 | 只填主名自动补 `.pdf`；改成 `.exe` → 400「只能修改文件名，不能修改扩展名」；他人 → 404 |
 | 逻辑删除 | 列表/统计立即消失（8→7），原 id 下载返回 404；他人删除 → 404 |
 | 选择即上传 | 选中文件后无需按钮，自动上传、显示进度，成功后自动刷新列表 |
+| 重复上传 | 同一内容第二次上传 → 「与已提交的『×××』内容相同，已跳过重复上传」，磁盘与 `file_info` 都不新增 |
 
 ### 8.3 界面截图（`docs/screenshots/`）
 
@@ -310,7 +316,6 @@ cmp 作业.pdf downloaded.pdf && echo BYTES_OK
 
 未做（任务书列为课后拓展或明确删减）：
 
-- MD5 去重与"重复上传"提示
 - ZIP 打包、完整操作审计
 - 注册 / 改密 / 角色权限
 - 逻辑删除后的回收站/物理清盘（记录与磁盘文件目前保留，由管理员清理）

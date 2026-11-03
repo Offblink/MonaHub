@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.monahub.entity.FileInfo;
 import com.monahub.entity.SysUser;
 import com.monahub.exception.BusinessException;
+import com.monahub.mapper.FileInfoMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +47,9 @@ class FileServiceQueryTest {
     @Autowired
     private FileService fileService;
 
+    @Autowired
+    private FileInfoMapper fileInfoMapper;
+
     private SysUser zhangsan;
     private SysUser lisi;
 
@@ -85,6 +89,26 @@ class FileServiceQueryTest {
         assertTrue(counts.get("doc") >= 1);
 
         assertTrue(fileService.stats(zhangsan.getId()).getTotal() >= 1);
+    }
+
+    @Test
+    void duplicateLookupMatchesSameUploaderAndIgnoresDeletedAndOthers() {
+        String md5 = "0123456789abcdef0123456789abcdef";
+        FileInfo meta = newMeta("原始文件.pdf", "pdf");
+        meta.setMd5(md5);
+        fileService.saveMeta(meta);
+
+        // 本人、同内容 → 命中
+        FileInfo hit = fileInfoMapper.selectDuplicate(zhangsan.getId(), md5);
+        assertNotNull(hit);
+        assertEquals(meta.getId(), hit.getId());
+
+        // 他人、同内容 → 不算重复
+        assertNull(fileInfoMapper.selectDuplicate(lisi.getId(), md5));
+
+        // 删除后不再参与去重（允许重新上传）
+        fileService.delete(meta.getId(), zhangsan.getId());
+        assertNull(fileInfoMapper.selectDuplicate(zhangsan.getId(), md5));
     }
 
     @Test

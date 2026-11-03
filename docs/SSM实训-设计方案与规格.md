@@ -407,3 +407,10 @@ upload.allowed-ext=pdf,jpg,jpeg,png,doc,docx,zip
 
 数据库迁移脚本：`sql/03_migrate_bcrypt_soft_delete.sql`（已有库执行一次；全新库直接跑 01 + 02）。
 
+### 12.1 追加：重复上传去重（MD5）
+
+任务书课后拓展第 4 条的补做：上传前对内容算 MD5，同一账号、`deleted = 0` 的记录里命中即
+**跳过落盘与入库**并提示「与已提交的『xxx』内容相同」；已删除记录不参与去重。
+数据库加 `file_info.md5` 与 `idx_uploader_md5`，迁移脚本 `sql/04_add_md5.sql`。
+因为是"先查重再写"，不存在先写后回滚的孤儿文件；落盘成功但入库失败的删盘补偿仍然保留。
+

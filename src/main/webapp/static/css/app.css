@@ -754,6 +754,15 @@ button {
     color: #ffb3bf;
 }
 
+.file-chip[data-state="dup"] {
+    border-color: rgba(251, 191, 36, 0.5);
+    background: rgba(251, 191, 36, 0.06);
+}
+
+.file-chip[data-state="dup"] .chip-msg {
+    color: #fde68a;
+}
+
 .file-chip[data-state="sending"] .chip-remove {
     visibility: hidden;
 }
@@ -811,6 +820,7 @@ button {
 
 .report-list li.ok .dot { background: var(--green); }
 .report-list li.fail .dot { background: var(--danger); }
+.report-list li.dup .dot { background: var(--warn); }
 .report-list strong { font-weight: 600; }
 .report-msg { color: var(--fg-dim); font-size: 12.5px; }
 
@@ -1591,6 +1601,14 @@ button {
 
 :root[data-theme="light"] .file-chip[data-state="fail"] .chip-msg {
     color: #b91c1c;
+}
+
+:root[data-theme="light"] .file-chip[data-state="dup"] {
+    background: rgba(217, 119, 6, 0.06);
+}
+
+:root[data-theme="light"] .file-chip[data-state="dup"] .chip-msg {
+    color: #b45309;
 }
 
 :root[data-theme="light"] .alert-error {

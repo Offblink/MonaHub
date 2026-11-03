@@ -110,7 +110,7 @@
             <h2 class="report-title">本次上传结果</h2>
             <ul class="report-list">
                 <c:forEach var="r" items="${results}">
-                    <li class="${r.ok ? 'ok' : 'fail'}">
+                    <li class="${r.duplicate ? 'dup' : (r.ok ? 'ok' : 'fail')}">
                         <span class="dot"></span>
                         <strong><c:out value="${r.name}"/></strong>
                         <span class="report-msg"><c:out value="${r.message}"/></span>

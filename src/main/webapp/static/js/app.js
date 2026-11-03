@@ -223,6 +223,7 @@
         var seq = 0;
         var pending = 0;
         var succeeded = 0;
+        var duplicates = 0;
         var finished = false;
 
         function formatSize(bytes) {
@@ -288,15 +289,24 @@
                 meta.textContent = '';
                 return;
             }
-            var summary = selected.length + ' 个文件 · 合计 ' + formatSize(total);
+            var parts = [];
             if (pending > 0) {
-                summary += ' · 正在上传…';
-            } else if (finished) {
-                summary += succeeded > 0
-                    ? ' · 完成 ' + succeeded + ' 个'
-                    : ' · 全部失败，请看失败原因';
+                parts.push('正在上传…');
             }
-            meta.textContent = summary;
+            if (succeeded > 0) {
+                parts.push(succeeded + ' 成功');
+            }
+            if (duplicates > 0) {
+                parts.push(duplicates + ' 重复已跳过');
+            }
+            if (finished) {
+                var failedCount = selected.length - succeeded - duplicates;
+                if (failedCount > 0) {
+                    parts.push(failedCount + ' 失败');
+                }
+            }
+            meta.textContent = selected.length + ' 个文件 · 合计 ' + formatSize(total)
+                + (parts.length ? ' · ' + parts.join(' / ') : '');
             clearBtn.disabled = pending > 0;
             if (reloadBtn) {
                 reloadBtn.hidden = !(finished && succeeded > 0);
@@ -373,6 +383,7 @@
                 }
             });
             succeeded = 0;
+            duplicates = 0;
             finished = false;
             sync();
         });
@@ -425,6 +436,11 @@
                 if (xhr.status === 413) {
                     item.state = 'fail';
                     item.message = '超过大小限制（单个 10MB / 单次 50MB）';
+                } else if (xhr.status === 200 && result && result.duplicate) {
+                    item.state = 'dup';
+                    item.progress = 100;
+                    item.message = result.message || '重复文件，已跳过';
+                    duplicates += 1;
                 } else if (xhr.status === 200 && result && result.ok) {
                     item.state = 'ok';
                     item.progress = 100;
@@ -457,7 +473,7 @@
             pending = Math.max(0, pending - 1);
             if (pending === 0) {
                 finished = true;
-                if (succeeded > 0 && succeeded === selected.length) {
+                if (succeeded > 0 && succeeded + duplicates === selected.length) {
                     meta.textContent = succeeded + ' 个文件上传成功，正在刷新列表…';
                     window.setTimeout(function () {
                         window.location.reload();

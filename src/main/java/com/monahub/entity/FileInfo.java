@@ -25,6 +25,8 @@ public class FileInfo {
     private String storeName;
     private String filePath;
     private String ext;
+    /** 内容 MD5，用于"同一账号重复上传同一文件"的去重。 */
+    private String md5;
     private Long fileSize;
     private String contentType;
     private Long uploaderId;
@@ -101,6 +103,14 @@ public class FileInfo {
 
     public void setExt(String ext) {
         this.ext = ext;
+    }
+
+    public String getMd5() {
+        return md5;
+    }
+
+    public void setMd5(String md5) {
+        this.md5 = md5;
     }
 
     public Long getFileSize() {

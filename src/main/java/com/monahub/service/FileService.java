@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.DigestUtils;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -146,6 +147,14 @@ public class FileService {
             String ext = FileNames.extOf(originName);
             validate(originName, ext, file.getSize());
 
+            // 重复上传回退：先算内容 MD5，再查同一账号下是否已有相同内容。
+            // 命中就直接返回，不落盘也不入库 —— 不会产生第二份文件和第二条记录。
+            String md5 = DigestUtils.md5DigestAsHex(file.getInputStream());
+            FileInfo duplicate = fileInfoMapper.selectDuplicate(user.getId(), md5);
+            if (duplicate != null) {
+                return UploadResult.duplicate(originName, duplicate.getOriginName());
+            }
+
             StoredFile stored = storageService.save(file, user.getUsername(), originName);
 
             FileInfo meta = new FileInfo();
@@ -153,6 +162,7 @@ public class FileService {
             meta.setStoreName(stored.getStoreName());
             meta.setFilePath(stored.getRelativePath());
             meta.setExt(stored.getExt());
+            meta.setMd5(md5);
             meta.setFileSize(stored.getSize());
             meta.setContentType(stored.getContentType());
             meta.setUploaderId(user.getId());

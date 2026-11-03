@@ -27,6 +27,10 @@ public interface FileInfoMapper {
     FileInfo selectByIdAndUploader(@Param("id") Long id,
                                    @Param("uploaderId") Long uploaderId);
 
+    /** 重复上传检查：同一账号下、未删除记录里内容 MD5 相同的第一条。 */
+    FileInfo selectDuplicate(@Param("uploaderId") Long uploaderId,
+                             @Param("md5") String md5);
+
     /** 分页列表：按上传人 + 可选分类扩展名集合 + 可选关键字。 */
     List<FileInfo> selectPage(IPage<FileInfo> page,
                               @Param("uploaderId") Long uploaderId,

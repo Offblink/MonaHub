@@ -9,6 +9,7 @@
         <result property="storeName" column="store_name"/>
         <result property="filePath" column="file_path"/>
         <result property="ext" column="ext"/>
+        <result property="md5" column="md5"/>
         <result property="fileSize" column="file_size"/>
         <result property="contentType" column="content_type"/>
         <result property="uploaderId" column="uploader_id"/>
@@ -19,7 +20,7 @@
     </resultMap>
 
     <sql id="columns">
-        id, origin_name, store_name, file_path, ext, file_size,
+        id, origin_name, store_name, file_path, ext, md5, file_size,
         content_type, uploader_id, create_time, status, deleted, download_count
     </sql>
 
@@ -27,10 +28,10 @@
     <insert id="insert" parameterType="com.monahub.entity.FileInfo"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO file_info
-            (origin_name, store_name, file_path, ext, file_size,
+            (origin_name, store_name, file_path, ext, md5, file_size,
              content_type, uploader_id, create_time, status, deleted, download_count)
         VALUES
-            (#{originName}, #{storeName}, #{filePath}, #{ext}, #{fileSize},
+            (#{originName}, #{storeName}, #{filePath}, #{ext}, #{md5}, #{fileSize},
              #{contentType}, #{uploaderId}, #{createTime}, #{status}, 0, #{downloadCount})
     </insert>
 
@@ -41,6 +42,20 @@
         WHERE id = #{id}
           AND uploader_id = #{uploaderId}
           AND deleted = 0
+    </select>
+
+    <!--
+      重复上传检查：同一账号、未删除记录里 MD5 相同即视为重复。
+      下载/改名/删除都不可见的已删除记录不参与去重（删掉后允许重新上传）。
+      LIMIT 1 只为拿一条用于提示"与已有文件 xxx 内容相同"。
+    -->
+    <select id="selectDuplicate" resultMap="fileMap">
+        SELECT <include refid="columns"/>
+        FROM file_info
+        WHERE uploader_id = #{uploaderId}
+          AND md5 = #{md5}
+          AND deleted = 0
+        LIMIT 1
     </select>
 
     <!--

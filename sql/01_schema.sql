@@ -42,6 +42,7 @@ CREATE TABLE file_info (
     store_name     VARCHAR(64)  NOT NULL                COMMENT 'UUID+扩展名，只落盘',
     file_path      VARCHAR(512) NOT NULL                COMMENT '相对 upload.root 的路径',
     ext            VARCHAR(16)  NOT NULL                COMMENT '小写扩展名',
+    md5            CHAR(32)     DEFAULT NULL            COMMENT '内容 MD5（重复上传去重）',
     file_size      BIGINT       NOT NULL                COMMENT '字节数',
     content_type   VARCHAR(128) DEFAULT NULL            COMMENT '上传时的 MIME',
     uploader_id    BIGINT       NOT NULL                COMMENT '上传人',
@@ -52,6 +53,7 @@ CREATE TABLE file_info (
     PRIMARY KEY (id),
     KEY idx_uploader (uploader_id),
     KEY idx_uploader_time (uploader_id, create_time),
+    KEY idx_uploader_md5 (uploader_id, md5),
     CONSTRAINT fk_file_uploader FOREIGN KEY (uploader_id) REFERENCES sys_user (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '文件元信息';
 
