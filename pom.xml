@@ -19,6 +19,10 @@
         <spring.version>5.3.31</spring.version>
         <mybatis.version>3.5.15</mybatis.version>
         <mybatis.spring.version>2.0.7</mybatis.spring.version>
+        <!-- 仅使用 MyBatis-Plus 的分页插件；SQL 仍全部写在 mapper XML -->
+        <mybatis.plus.version>3.5.5</mybatis.plus.version>
+        <jsqlparser.version>4.6</jsqlparser.version>
+        <security.crypto.version>5.7.11</security.crypto.version>
         <hikari.version>4.0.3</hikari.version>
         <mysql.version>8.0.33</mysql.version>
         <jackson.version>2.15.4</jackson.version>
@@ -88,6 +92,28 @@
             <groupId>org.mybatis</groupId>
             <artifactId>mybatis-spring</artifactId>
             <version>${mybatis.spring.version}</version>
+        </dependency>
+
+        <!-- ================= MyBatis-Plus：只要分页插件 ================= -->
+        <!-- 不引入 BaseMapper / ActiveRecord：SQL 仍写在 XML，
+             仅用 PaginationInnerInterceptor 处理 LIMIT 与 count 查询 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-extension</artifactId>
+            <version>${mybatis.plus.version}</version>
+        </dependency>
+        <!-- 分页插件的 count SQL 优化依赖 jsqlparser（与 MP 3.5.5 配套的版本） -->
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+            <version>${jsqlparser.version}</version>
+        </dependency>
+
+        <!-- ================= 口令：BCrypt（自带随机盐） ================= -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+            <version>${security.crypto.version}</version>
         </dependency>
 
         <!-- ================= 连接池 / 驱动 ================= -->

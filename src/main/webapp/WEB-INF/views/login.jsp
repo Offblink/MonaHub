@@ -58,7 +58,6 @@
             <li><span class="dot dot-violet"></span>归属校验 · 下载计数</li>
         </ul>
 
-        <p class="hero-note">Spring · Spring MVC · MyBatis · JSP · MySQL</p>
     </section>
 
     <section class="panel glass">
@@ -71,9 +70,6 @@
             <div class="alert alert-error" role="alert">
                 <c:out value="${error}"/>
             </div>
-        </c:if>
-        <c:if test="${param.logout == '1'}">
-            <div class="alert alert-ok" role="status">已安全退出</div>
         </c:if>
 
         <form method="post" action="${pageContext.request.contextPath}/login" class="login-form" autocomplete="on">
@@ -101,7 +97,6 @@
             <button type="button" class="chip" data-fill-user="lisi" data-fill-pass="123456">lisi / 123456</button>
         </div>
 
-        <p class="panel-foot">口令加盐散列存储，库中无明文</p>
     </section>
 
 </main>

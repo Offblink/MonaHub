@@ -25,8 +25,8 @@ DROP TABLE IF EXISTS sys_user;
 CREATE TABLE sys_user (
     id          BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键',
     username    VARCHAR(50) NOT NULL                COMMENT '登录账号',
-    password    CHAR(64)    NOT NULL                COMMENT 'sha256(salt:明文) 的十六进制',
-    salt        CHAR(32)    NOT NULL                COMMENT '16 字节随机盐的十六进制',
+    password    VARCHAR(72) NOT NULL                COMMENT 'BCrypt 散列（$2a$10$...，自带随机盐）',
+    salt        VARCHAR(32) NOT NULL DEFAULT ''     COMMENT '历史字段：BCrypt 自带盐，本列保留兼容任务书表结构',
     real_name   VARCHAR(50) DEFAULT NULL            COMMENT '显示名',
     create_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -47,6 +47,7 @@ CREATE TABLE file_info (
     uploader_id    BIGINT       NOT NULL                COMMENT '上传人',
     create_time    DATETIME     NOT NULL                COMMENT '上传时间',
     status         TINYINT      NOT NULL DEFAULT 1      COMMENT '1 正常 / 0 已冻结',
+    deleted        TINYINT      NOT NULL DEFAULT 0      COMMENT '0 正常 / 1 已逻辑删除（列表与下载都不可见）',
     download_count INT          NOT NULL DEFAULT 0      COMMENT '下载次数',
     PRIMARY KEY (id),
     KEY idx_uploader (uploader_id),

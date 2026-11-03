@@ -1,66 +1,34 @@
 package com.monahub.util;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.nio.charset.StandardCharsets;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 /**
- * 口令加盐散列：salt 为 16 字节随机数（十六进制 32 位），
- * password = SHA-256(salt + ":" + 明文) 的十六进制。
+ * 口令散列：BCrypt（cost 10），哈希串形如 {@code $2a$10$...}。
  *
- * <p>为什么不选 AES：AES 是可逆的，一旦库泄露等于泄露明文；
- * 口令只需要"能验证、不能还原"，必须用单向散列。</p>
+ * <p>BCrypt 自带随机盐并把盐写进哈希串，所以数据库不再需要单独的盐列；
+ * 任务书表结构里的 {@code salt} 字段保留为兼容位（写空串），README 有说明。</p>
  *
- * <p>说明：课内演示用单轮 SHA-256 足够说明"加盐 + 不明文"；
- * 生产环境应换成 PBKDF2/BCrypt 并提高迭代次数（README 拓展项已注明）。</p>
+ * <p>为什么换掉单轮 SHA-256：SHA-256 太快，泄露后可被 GPU 高速爆破；
+ * BCrypt 按 cost 有意放慢，并对每个口令使用独立随机盐。</p>
  */
 public final class PasswordUtil {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-    private static final char[] HEX = "0123456789abcdef".toCharArray();
+    /** cost=10 约 60–100ms/次，课内登录手感与安全性的折中。 */
+    private static final BCryptPasswordEncoder ENCODER = new BCryptPasswordEncoder(10);
 
     private PasswordUtil() {
     }
 
-    /** 生成 16 字节随机盐的十六进制串。 */
-    public static String newSalt() {
-        byte[] bytes = new byte[16];
-        RANDOM.nextBytes(bytes);
-        return toHex(bytes);
+    /** 生成 BCrypt 哈希（含随机盐）。 */
+    public static String encode(String rawPassword) {
+        return ENCODER.encode(rawPassword);
     }
 
-    /** 计算 SHA-256(salt + ":" + rawPassword) 的十六进制。 */
-    public static String hash(String rawPassword, String salt) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update(salt.getBytes(StandardCharsets.UTF_8));
-            digest.update((byte) ':');
-            return toHex(digest.digest(rawPassword.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            // JDK 必须提供 SHA-256，走到这里说明运行环境损坏
-            throw new IllegalStateException("当前 JVM 不支持 SHA-256", e);
-        }
-    }
-
-    /** 常量时间比较，避免按字节短路带来的旁路信息。 */
-    public static boolean verify(String rawPassword, String salt, String expectedHash) {
-        if (rawPassword == null || salt == null || expectedHash == null) {
+    /** 校验明文与库中哈希；空值一律失败，避免把 null 当匹配。 */
+    public static boolean matches(String rawPassword, String storedHash) {
+        if (rawPassword == null || storedHash == null || storedHash.isBlank()) {
             return false;
         }
-        String actual = hash(rawPassword, salt);
-        return MessageDigest.isEqual(
-                actual.getBytes(StandardCharsets.UTF_8),
-                expectedHash.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static String toHex(byte[] bytes) {
-        char[] out = new char[bytes.length * 2];
-        for (int i = 0; i < bytes.length; i++) {
-            int v = bytes[i] & 0xFF;
-            out[i * 2] = HEX[v >>> 4];
-            out[i * 2 + 1] = HEX[v & 0x0F];
-        }
-        return new String(out);
+        return ENCODER.matches(rawPassword, storedHash);
     }
 }

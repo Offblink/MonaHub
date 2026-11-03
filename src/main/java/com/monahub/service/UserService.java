@@ -27,7 +27,7 @@ public class UserService {
             return null;
         }
         SysUser user = sysUserMapper.findByUsername(username.trim());
-        if (user == null || !PasswordUtil.verify(password, user.getSalt(), user.getPassword())) {
+        if (user == null || !PasswordUtil.matches(password, user.getPassword())) {
             return null;
         }
         // 放进 session 之前必须脱敏：会话里不保留任何口令材料

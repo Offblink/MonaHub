@@ -1,5 +1,6 @@
 package com.monahub.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monahub.dto.UploadResult;
 import com.monahub.entity.FileInfo;
@@ -33,16 +34,19 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * 工作台：列表 / 上传 / 冻结 / 下载。
+ * 工作台：列表（分页）/ 上传 / 冻结 / 重命名 / 删除 / 下载。
  *
  * <p>Controller 只做三件事：取会话用户、调 Service、组织视图或响应；
- * 文件校验、路径安全、归属判断全部在 Service 层完成。</p>
+ * 文件校验、路径安全、归属判断、分页参数夹紧全部在 Service 层完成。</p>
  */
 @Controller
 @RequestMapping("/files")
 public class FileController {
 
     private static final Logger log = LoggerFactory.getLogger(FileController.class);
+
+    /** 默认每页条数；URL 可用 ?size= 覆盖，上限由 Service 夹紧。 */
+    private static final int DEFAULT_PAGE_SIZE = 6;
 
     private final FileService fileService;
     private final StorageService storageService;
@@ -56,19 +60,25 @@ public class FileController {
         this.objectMapper = objectMapper;
     }
 
-    /** 列表页：恒定只看本人；分类与关键字是可选的收窄条件。 */
+    /** 列表页：恒定只看本人；分类、关键字、页码都是可选的收窄条件。 */
     @GetMapping
     public String list(@RequestParam(value = "category", defaultValue = "all") String category,
                        @RequestParam(value = "q", defaultValue = "") String keyword,
+                       @RequestParam(value = "page", defaultValue = "1") int pageNo,
+                       @RequestParam(value = "size", defaultValue = "" + DEFAULT_PAGE_SIZE) int pageSize,
                        HttpSession session,
                        Model model) {
         SysUser user = currentUser(session);
+        Page<FileInfo> page = fileService.list(user.getId(), category, keyword, pageNo, pageSize);
+
         model.addAttribute("user", user);
-        model.addAttribute("files", fileService.list(user.getId(), category, keyword));
+        model.addAttribute("page", page);
+        model.addAttribute("files", page.getRecords());
         model.addAttribute("stats", fileService.stats(user.getId()));
         model.addAttribute("counts", fileService.countsByCategory(user.getId()));
         model.addAttribute("category", category);
         model.addAttribute("keyword", keyword);
+        model.addAttribute("pageSize", page.getSize());
         return "files";
     }
 
@@ -108,6 +118,8 @@ public class FileController {
                          @RequestParam(value = "frozen", defaultValue = "1") int frozen,
                          @RequestParam(value = "category", defaultValue = "all") String category,
                          @RequestParam(value = "q", defaultValue = "") String keyword,
+                         @RequestParam(value = "page", defaultValue = "1") int pageNo,
+                         @RequestParam(value = "size", defaultValue = "" + DEFAULT_PAGE_SIZE) int pageSize,
                          HttpSession session,
                          RedirectAttributes redirectAttributes) {
         SysUser user = currentUser(session);
@@ -115,9 +127,38 @@ public class FileController {
         fileService.freeze(id, user.getId(), target);
         redirectAttributes.addFlashAttribute("message",
                 target ? "已冻结，该文件暂时无法下载" : "已解冻，可以继续下载");
-        redirectAttributes.addAttribute("category", category);
-        redirectAttributes.addAttribute("q", keyword);
-        return "redirect:/files";
+        return backToList(redirectAttributes, category, keyword, pageNo, pageSize);
+    }
+
+    /** 重命名：只改展示名，扩展名必须保持不变。 */
+    @PostMapping("/{id}/rename")
+    public String rename(@PathVariable("id") Long id,
+                         @RequestParam("newName") String newName,
+                         @RequestParam(value = "category", defaultValue = "all") String category,
+                         @RequestParam(value = "q", defaultValue = "") String keyword,
+                         @RequestParam(value = "page", defaultValue = "1") int pageNo,
+                         @RequestParam(value = "size", defaultValue = "" + DEFAULT_PAGE_SIZE) int pageSize,
+                         HttpSession session,
+                         RedirectAttributes redirectAttributes) {
+        SysUser user = currentUser(session);
+        fileService.rename(id, user.getId(), newName);
+        redirectAttributes.addFlashAttribute("message", "已重命名");
+        return backToList(redirectAttributes, category, keyword, pageNo, pageSize);
+    }
+
+    /** 逻辑删除：记录与磁盘文件保留，用户侧不可见。 */
+    @PostMapping("/{id}/delete")
+    public String delete(@PathVariable("id") Long id,
+                         @RequestParam(value = "category", defaultValue = "all") String category,
+                         @RequestParam(value = "q", defaultValue = "") String keyword,
+                         @RequestParam(value = "page", defaultValue = "1") int pageNo,
+                         @RequestParam(value = "size", defaultValue = "" + DEFAULT_PAGE_SIZE) int pageSize,
+                         HttpSession session,
+                         RedirectAttributes redirectAttributes) {
+        SysUser user = currentUser(session);
+        fileService.delete(id, user.getId());
+        redirectAttributes.addFlashAttribute("message", "已删除，列表与统计中不再显示");
+        return backToList(redirectAttributes, category, keyword, pageNo, pageSize);
     }
 
     /**
@@ -161,6 +202,16 @@ public class FileController {
     }
 
     // ============================================================
+
+    /** 操作后回到同一筛选条件、同一页。 */
+    private static String backToList(RedirectAttributes redirectAttributes, String category,
+                                     String keyword, int pageNo, int pageSize) {
+        redirectAttributes.addAttribute("category", category);
+        redirectAttributes.addAttribute("q", keyword);
+        redirectAttributes.addAttribute("page", Math.max(1, pageNo));
+        redirectAttributes.addAttribute("size", pageSize);
+        return "redirect:/files";
+    }
 
     private static SysUser currentUser(HttpSession session) {
         return (SysUser) session.getAttribute(LoginInterceptor.SESSION_USER);

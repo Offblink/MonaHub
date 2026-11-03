@@ -387,4 +387,23 @@ upload.allowed-ext=pdf,jpg,jpeg,png,doc,docx,zip
 | 功能范围 | 老师三处批注（多文件 / 并发 / 分类）+ 冻结 + 下载计数 + F5 AOP 日志 **全做** |
 | UI 依赖 | **vendored GSAP 3.12.7**（本地 `static/vendor/`，运行期零 CDN） |
 | 主题 | **深/浅双主题 + 偏好记忆**（不锁死暗色；参考 TRead 的令牌覆盖与圆形涟漪切换） |
-| 未做 | MD5 去重、逻辑删除 UI、分页、ZIP、病毒扫描（README 课后拓展） |
+| 未做 | MD5 去重、ZIP、注册/改密/角色权限（病毒扫描按用户要求剔除） |
+
+---
+
+## 12. 增量记录（2026-11-03 二次确认）
+
+用户追加需求后的实现变更，覆盖本文档前文的对应口径：
+
+| 变更项 | 落地方式 |
+|---|---|
+| 文件重命名 | `POST /files/{id}/rename`，只改 `origin_name`；扩展名必须保持（只给主名自动补），扩展开关拒绝 → 400 |
+| 文件删除 | `POST /files/{id}/delete`，新增 `file_info.deleted`（0/1）做逻辑删除；列表/统计/下载/改名全部过滤，磁盘文件保留 |
+| 分页 | **MyBatis-Plus 分页插件**（3.5.5 `MybatisPlusInterceptor` + `PaginationInnerInterceptor`）；SQL 仍写在 `FileInfoMapper.xml`，不引入 BaseMapper；默认 6 条/页，单页上限 50，页码越界回退末页 |
+| 口令 | 单轮加盐 SHA-256 → **BCrypt**（`BCryptPasswordEncoder`，cost 10）；哈希自带盐，`salt` 列保留兼容位 |
+| 上传交互 | 去掉"开始上传"按钮：**选择/拖入即上传**，逐文件 XHR 并发 + 进度；成功后自动刷新列表，部分失败保留失败原因 |
+| 界面 | 操作列 4 个动作（下载/冻结/重命名/删除），表头与按钮右对齐；移除登录页与工作台的三处说明文案 |
+| 病毒扫描 | 明确不做（用户指定） |
+
+数据库迁移脚本：`sql/03_migrate_bcrypt_soft_delete.sql`（已有库执行一次；全新库直接跑 01 + 02）。
+

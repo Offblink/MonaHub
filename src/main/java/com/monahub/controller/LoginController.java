@@ -72,6 +72,6 @@ public class LoginController {
         if (session != null) {
             session.invalidate();
         }
-        return "redirect:/login?logout=1";
+        return "redirect:/login";
     }
 }

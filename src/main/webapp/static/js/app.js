@@ -1,12 +1,12 @@
 /* ============================================================
    MonaHub 前端交互
    - 动效全部可选：GSAP 不存在 / 系统要求减少动态效果时，页面保持纯 CSS 可用
-   - 上传走逐文件 XHR（并发），同时保留无脚本时的原生表单提交
+   - 上传：选择/拖入即上传（逐文件 XHR，并发 + 各自进度）
+   - 冻结 / 解冻 / 删除 / 重命名共用一个自绘模态
    ============================================================ */
 (function () {
     'use strict';
 
-    var body = document.body;
     var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var gsap = window.gsap;
     var canAnimate = !reduceMotion && typeof gsap === 'function';
@@ -201,7 +201,7 @@
         }, 3200);
     });
 
-    /* ---------------- 上传区 ---------------- */
+    /* ---------------- 上传区：选择即上传 ---------------- */
     var uploadForm = document.getElementById('uploadForm');
     if (uploadForm) {
         setupUpload(uploadForm);
@@ -214,10 +214,14 @@
         var meta = document.getElementById('dzMeta');
         var dropzone = document.getElementById('dropzone');
         var clearBtn = document.getElementById('clearBtn');
-        var uploadBtn = document.getElementById('uploadBtn');
+        var reloadBtn = document.getElementById('reloadBtn');
         var emptyState = document.getElementById('dzEmpty');
+
         var selected = [];
         var seq = 0;
+        var pending = 0;
+        var succeeded = 0;
+        var finished = false;
 
         function formatSize(bytes) {
             if (bytes < 1024) {
@@ -278,24 +282,48 @@
             if (emptyState) {
                 emptyState.hidden = selected.length > 0;
             }
-            meta.textContent = selected.length
-                ? selected.length + ' 个文件 · 合计 ' + formatSize(total)
-                : '';
+            if (selected.length === 0) {
+                meta.textContent = '';
+                return;
+            }
+            var summary = selected.length + ' 个文件 · 合计 ' + formatSize(total);
+            if (pending > 0) {
+                summary += ' · 正在上传…';
+            } else if (finished) {
+                summary += succeeded > 0
+                    ? ' · 完成 ' + succeeded + ' 个'
+                    : ' · 全部失败，请看失败原因';
+            }
+            meta.textContent = summary;
+            clearBtn.disabled = pending > 0;
+            if (reloadBtn) {
+                reloadBtn.hidden = !(finished && succeeded > 0);
+            }
         }
 
         function addFiles(list) {
+            var added = [];
             Array.prototype.forEach.call(list, function (file) {
                 seq += 1;
-                selected.push({
+                var item = {
                     id: 'f' + seq,
                     file: file,
                     state: '',
                     progress: 0,
                     message: ''
-                });
-                createChip(selected[selected.length - 1]);
+                };
+                selected.push(item);
+                createChip(item);
+                added.push(item);
             });
+            if (!added.length) {
+                return;
+            }
+            pending += added.length;
+            finished = false;
             sync();
+            // 选择即上传：每个文件一个 XHR，天然并发
+            added.forEach(uploadOne);
         }
 
         input.addEventListener('change', function () {
@@ -342,163 +370,224 @@
                     li.remove();
                 }
             });
+            succeeded = 0;
+            finished = false;
             sync();
         });
 
+        if (reloadBtn) {
+            reloadBtn.addEventListener('click', function () {
+                window.location.reload();
+            });
+        }
+
+        // 无脚本时由浏览器原生提交；有脚本时一切走 addFiles 的自动上传，阻止重复提交
         form.addEventListener('submit', function (event) {
-            if (!selected.length) {
+            if (window.XMLHttpRequest) {
                 event.preventDefault();
-                return;
             }
-            if (!window.XMLHttpRequest) {
-                return; // 老浏览器：交给原生表单提交
-            }
-            event.preventDefault();
-            uploadAll();
         });
 
-        function uploadAll() {
-            uploadBtn.disabled = true;
-            uploadBtn.classList.add('is-disabled');
-            clearBtn.disabled = true;
-            meta.textContent = '正在上传 ' + selected.length + ' 个文件…';
+        function uploadOne(item) {
+            var xhr = new XMLHttpRequest();
+            var data = new FormData();
+            data.append('files', item.file, item.file.name);
 
-            var tasks = selected.map(uploadOne);
-            Promise.all(tasks).then(function (results) {
-                var ok = results.filter(Boolean).length;
-                if (ok > 0) {
-                    meta.textContent = ok + ' 个文件上传成功，正在刷新列表…';
+            item.state = 'sending';
+            item.message = '排队上传…';
+            updateChip(item);
+
+            xhr.open('POST', form.action, true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+            xhr.upload.onprogress = function (event) {
+                if (event.lengthComputable) {
+                    item.progress = Math.round(event.loaded / event.total * 100);
+                    item.message = '上传中 ' + item.progress + '%';
+                    updateChip(item);
+                }
+            };
+
+            xhr.onload = function () {
+                var body = xhr.responseText || '';
+                var result = null;
+                if (body.trim().charAt(0) === '{' || body.trim().charAt(0) === '[') {
+                    try {
+                        var parsed = JSON.parse(body);
+                        result = Array.isArray(parsed) ? parsed[0] : parsed;
+                    } catch (ignore) {
+                        result = null;
+                    }
+                }
+
+                if (xhr.status === 413) {
+                    item.state = 'fail';
+                    item.message = '超过大小限制（单个 10MB / 单次 50MB）';
+                } else if (xhr.status === 200 && result && result.ok) {
+                    item.state = 'ok';
+                    item.progress = 100;
+                    item.message = result.message || '上传成功';
+                    succeeded += 1;
+                } else if (xhr.status === 200 && result) {
+                    item.state = 'fail';
+                    item.message = result.message || '上传失败';
+                } else if (xhr.status === 200 && body.indexOf('<') === 0) {
+                    item.state = 'fail';
+                    item.message = '登录已过期，请刷新页面重新登录';
+                } else {
+                    item.state = 'fail';
+                    item.message = '上传失败（HTTP ' + xhr.status + '）';
+                }
+                settle(item);
+            };
+
+            xhr.onerror = function () {
+                item.state = 'fail';
+                item.message = '网络中断，请重试';
+                settle(item);
+            };
+
+            xhr.send(data);
+        }
+
+        function settle(item) {
+            updateChip(item);
+            pending = Math.max(0, pending - 1);
+            if (pending === 0) {
+                finished = true;
+                if (succeeded > 0 && succeeded === selected.length) {
+                    meta.textContent = succeeded + ' 个文件上传成功，正在刷新列表…';
                     window.setTimeout(function () {
                         window.location.reload();
-                    }, 1300);
-                } else {
-                    meta.textContent = '没有文件上传成功，请查看每个文件的原因';
-                    uploadBtn.disabled = false;
-                    uploadBtn.classList.remove('is-disabled');
-                    clearBtn.disabled = false;
+                    }, 1200);
+                    return;
                 }
-            });
-        }
-
-        function uploadOne(item) {
-            return new Promise(function (resolve) {
-                var xhr = new XMLHttpRequest();
-                var data = new FormData();
-                data.append('files', item.file, item.file.name);
-
-                item.state = 'sending';
-                item.message = '排队上传…';
-                updateChip(item);
-
-                xhr.open('POST', form.action, true);
-                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-
-                xhr.upload.onprogress = function (event) {
-                    if (event.lengthComputable) {
-                        item.progress = Math.round(event.loaded / event.total * 100);
-                        item.message = '上传中 ' + item.progress + '%';
-                        updateChip(item);
-                    }
-                };
-
-                xhr.onload = function () {
-                    var body = xhr.responseText || '';
-                    var result = null;
-                    if (body.trim().charAt(0) === '{' || body.trim().charAt(0) === '[') {
-                        try {
-                            var parsed = JSON.parse(body);
-                            result = Array.isArray(parsed) ? parsed[0] : parsed;
-                        } catch (ignore) {
-                            result = null;
-                        }
-                    }
-
-                    if (xhr.status === 413) {
-                        item.state = 'fail';
-                        item.message = '超过大小限制（单个 10MB / 单次 50MB）';
-                    } else if (xhr.status === 200 && result && result.ok) {
-                        item.state = 'ok';
-                        item.progress = 100;
-                        item.message = result.message || '上传成功';
-                    } else if (xhr.status === 200 && result) {
-                        item.state = 'fail';
-                        item.message = result.message || '上传失败';
-                    } else if (xhr.status === 200 && body.indexOf('<') === 0) {
-                        item.state = 'fail';
-                        item.message = '登录已过期，请刷新页面重新登录';
-                    } else {
-                        item.state = 'fail';
-                        item.message = '上传失败（HTTP ' + xhr.status + '）';
-                    }
-                    updateChip(item);
-                    resolve(item.state === 'ok');
-                };
-
-                xhr.onerror = function () {
-                    item.state = 'fail';
-                    item.message = '网络中断，请重试';
-                    updateChip(item);
-                    resolve(false);
-                };
-
-                xhr.send(data);
-            });
+            }
+            sync();
         }
     }
 
-    /* ---------------- 冻结/解冻确认模态 ---------------- */
-    var modal = document.getElementById('freezeModal');
+    /* ---------------- 冻结 / 解冻 / 删除 / 重命名 共用一个模态 ---------------- */
+    var modal = document.getElementById('actionModal');
     if (modal) {
-        setupFreezeModal(modal);
+        setupActionModal(modal);
     }
 
-    function setupFreezeModal(modalEl) {
+    function setupActionModal(modalEl) {
         var title = document.getElementById('modalTitle');
         var text = document.getElementById('modalText');
         var fileEl = document.getElementById('modalFile');
+        var input = document.getElementById('modalInput');
+        var hint = document.getElementById('modalHint');
         var okBtn = document.getElementById('modalOk');
         var cancelBtn = document.getElementById('modalCancel');
-        var pendingForm = null;
 
-        Array.prototype.forEach.call(document.querySelectorAll('.freeze-form'), function (form) {
+        var pendingForm = null;
+        var mode = '';
+
+        function setConfirmStyle(kind) {
+            okBtn.classList.remove('btn-danger', 'btn-primary');
+            okBtn.classList.add(kind === 'danger' ? 'btn-danger' : 'btn-primary');
+        }
+
+        function openModal() {
+            modalEl.hidden = false;
+            if (mode === 'rename') {
+                input.focus();
+                var dot = input.value.lastIndexOf('.');
+                input.setSelectionRange(0, dot > 0 ? dot : input.value.length);
+            } else {
+                cancelBtn.focus();
+            }
+        }
+
+        function closeModal() {
+            modalEl.hidden = true;
+            pendingForm = null;
+            mode = '';
+            input.hidden = true;
+            hint.hidden = true;
+            fileEl.hidden = false;
+        }
+
+        Array.prototype.forEach.call(document.querySelectorAll('.js-action-form'), function (form) {
             form.addEventListener('submit', function (event) {
                 event.preventDefault();
                 pendingForm = form;
-                var action = form.dataset.action || '冻结';
+                mode = form.dataset.kind || 'freeze';
+
+                var action = form.dataset.action || '确认';
                 title.textContent = action + '该文件？';
-                text.textContent = action === '冻结'
-                    ? '冻结后你自己也无法下载这个文件，可随时解冻。'
-                    : '解冻后可以继续下载这个文件。';
+                if (mode === 'delete') {
+                    text.textContent = '删除后列表与统计中不再显示（逻辑删除，磁盘文件保留）。';
+                    setConfirmStyle('danger');
+                } else if (action === '解冻') {
+                    text.textContent = '解冻后可以继续下载这个文件。';
+                    setConfirmStyle('primary');
+                } else {
+                    text.textContent = '冻结后你自己也无法下载这个文件，可随时解冻。';
+                    setConfirmStyle('danger');
+                }
                 fileEl.textContent = form.dataset.file || '';
+                fileEl.hidden = false;
+                input.hidden = true;
+                hint.hidden = true;
                 okBtn.textContent = '确认' + action;
-                okBtn.classList.toggle('btn-danger', action === '冻结');
-                modalEl.hidden = false;
-                cancelBtn.focus();
+                openModal();
             });
         });
 
-        function close() {
-            modalEl.hidden = true;
-            pendingForm = null;
-        }
+        Array.prototype.forEach.call(document.querySelectorAll('.js-rename-form'), function (form) {
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                pendingForm = form;
+                mode = 'rename';
 
-        cancelBtn.addEventListener('click', close);
+                title.textContent = '重命名文件';
+                text.textContent = '只改显示名，磁盘文件名不动；扩展名不能修改。';
+                fileEl.textContent = '';
+                fileEl.hidden = true;
+                input.hidden = false;
+                input.value = form.dataset.file || '';
+                hint.hidden = false;
+                hint.textContent = '扩展名保持 .' + (form.dataset.ext || '');
+                okBtn.textContent = '保存';
+                setConfirmStyle('primary');
+                openModal();
+            });
+        });
+
+        cancelBtn.addEventListener('click', closeModal);
         modalEl.addEventListener('click', function (event) {
             if (event.target === modalEl) {
-                close();
+                closeModal();
             }
         });
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape' && !modalEl.hidden) {
-                close();
+                closeModal();
             }
         });
+
         okBtn.addEventListener('click', function () {
             if (!pendingForm) {
                 return;
             }
+            if (mode === 'rename') {
+                var name = (input.value || '').trim();
+                if (!name) {
+                    hint.hidden = false;
+                    hint.textContent = '文件名不能为空';
+                    input.focus();
+                    return;
+                }
+                var hidden = pendingForm.querySelector('input[name="newName"]');
+                if (hidden) {
+                    hidden.value = name;
+                }
+            }
             var form = pendingForm;
-            close();
+            closeModal();
             form.submit();
         });
     }

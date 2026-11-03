@@ -1,5 +1,6 @@
 package com.monahub.service;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.monahub.dto.ExtCount;
 import com.monahub.dto.FileStats;
 import com.monahub.dto.StoredFile;
@@ -49,6 +50,9 @@ import java.util.concurrent.TimeUnit;
 public class FileService {
 
     private static final Logger log = LoggerFactory.getLogger(FileService.class);
+
+    /** 单页上限：页码来自 URL，必须夹紧，防止一次查全表。 */
+    private static final int MAX_PAGE_SIZE = 50;
 
     private final FileInfoMapper fileInfoMapper;
     private final StorageService storageService;
@@ -203,14 +207,38 @@ public class FileService {
     // 查询 / 统计
     // ============================================================
 
-    public List<FileInfo> list(Long uploaderId, String categoryKey, String keyword) {
+    /**
+     * 分页列表：按上传人隔离，可按分类与关键字收窄。
+     *
+     * <p>分页交给 MyBatis-Plus 的 PaginationInnerInterceptor：
+     * XML 里只写 SELECT ... WHERE ... ORDER BY，LIMIT/OFFSET 与 count 由插件生成。</p>
+     *
+     * @param pageNo   ＞=1，越界时自动回退到最后一页
+     * @param pageSize 1..MAX_PAGE_SIZE
+     */
+    public Page<FileInfo> list(Long uploaderId, String categoryKey, String keyword,
+                               int pageNo, int pageSize) {
         FileCategory category = FileCategory.byKey(categoryKey);
         List<String> exts = category == null ? null : category.extensionList();
         String q = keyword == null ? null : keyword.trim();
         if (q != null && q.isEmpty()) {
             q = null;
         }
-        return fileInfoMapper.selectByUploader(uploaderId, exts, q);
+
+        int current = Math.max(1, pageNo);
+        int size = Math.min(MAX_PAGE_SIZE, Math.max(1, pageSize));
+        Page<FileInfo> page = new Page<>(current, size);
+
+        List<FileInfo> records = fileInfoMapper.selectPage(page, uploaderId, exts, q);
+        page.setRecords(records);
+
+        // 删除/筛选后页码越界：回退到最后一页再查一次，避免用户看到空白页
+        if (records.isEmpty() && current > 1 && page.getTotal() > 0
+                && page.getPages() < current) {
+            page.setCurrent(page.getPages());
+            page.setRecords(fileInfoMapper.selectPage(page, uploaderId, exts, q));
+        }
+        return page;
     }
 
     public FileStats stats(Long uploaderId) {
@@ -242,6 +270,54 @@ public class FileService {
         }
         counts.put("all", total);
         return counts;
+    }
+
+    // ============================================================
+    // 重命名 / 逻辑删除
+    // ============================================================
+
+    /**
+     * 重命名：只改展示名 origin_name，磁盘 UUID 名不动。
+     * 允许只输入主名（自动补原扩展名），但不允许改扩展名 —— 否则会出现
+     * "名字是 .pdf、内容其实是 exe" 的欺骗面。
+     */
+    @Transactional
+    public void rename(Long id, Long uploaderId, String newName) {
+        FileInfo file = fileInfoMapper.selectByIdAndUploader(id, uploaderId);
+        if (file == null) {
+            throw new BusinessException(404, "文件不存在或无权操作");
+        }
+
+        String name = FileNames.sanitize(newName);
+        if (name == null || name.isBlank()) {
+            throw new BusinessException(400, "文件名不能为空");
+        }
+
+        String ext = file.getExt();
+        String newExt = FileNames.extOf(name);
+        if (newExt.isEmpty()) {
+            name = name + "." + ext;
+        } else if (!newExt.equalsIgnoreCase(ext)) {
+            throw new BusinessException(400, "只能修改文件名，不能修改扩展名");
+        }
+        if (name.length() > 255) {
+            throw new BusinessException(400, "文件名不能超过 255 个字符");
+        }
+
+        if (fileInfoMapper.rename(id, uploaderId, name) == 0) {
+            throw new BusinessException(404, "文件不存在或无权操作");
+        }
+    }
+
+    /**
+     * 逻辑删除：deleted = 1，记录与磁盘文件都保留（管理员可清理或恢复）。
+     * 删除后列表、统计、下载、改名全部不可见。
+     */
+    @Transactional
+    public void delete(Long id, Long uploaderId) {
+        if (fileInfoMapper.softDelete(id, uploaderId) == 0) {
+            throw new BusinessException(404, "文件不存在或无权操作");
+        }
     }
 
     // ============================================================

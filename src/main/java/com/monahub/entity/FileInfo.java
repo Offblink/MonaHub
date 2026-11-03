@@ -31,6 +31,8 @@ public class FileInfo {
     private LocalDateTime createTime;
     /** 1 = 正常，0 = 已冻结（本人与访客都不可下载）。 */
     private Integer status;
+    /** 0 = 正常，1 = 已逻辑删除（列表与下载都不可见）。 */
+    private Integer deleted;
     private Integer downloadCount;
 
     // ---------- 以下为页面派生字段，不对应数据库列 ----------
@@ -139,6 +141,14 @@ public class FileInfo {
 
     public void setStatus(Integer status) {
         this.status = status;
+    }
+
+    public Integer getDeleted() {
+        return deleted;
+    }
+
+    public void setDeleted(Integer deleted) {
+        this.deleted = deleted;
     }
 
     public Integer getDownloadCount() {

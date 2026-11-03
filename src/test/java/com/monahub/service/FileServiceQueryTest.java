@@ -1,5 +1,6 @@
 package com.monahub.service;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.monahub.entity.FileInfo;
 import com.monahub.entity.SysUser;
 import com.monahub.exception.BusinessException;
@@ -12,8 +13,10 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -23,13 +26,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 查询/冻结/下载校验的集成测试。
+ * 查询 / 分页 / 重命名 / 逻辑删除 / 冻结 / 下载校验的集成测试。
  *
  * <p>依赖本机 MySQL 的 submission_hub（sql/01_schema.sql + 02_data.sql 已导入）；
  * 测试类带 @Transactional，所有写库操作在用例结束后回滚，不污染演示数据。</p>
  *
  * <p>注意：多文件上传走线程池、独立事务，不在测试事务内，
- * 因此这里只测"校验/查询/冻结/归属"这些同线程路径，真实上传由 README 的
+ * 因此这里只测"校验/查询/分页/改名/删除"这些同线程路径，真实上传由 README 的
  * curl 端到端脚本覆盖。</p>
  */
 @ExtendWith(SpringExtension.class)
@@ -72,10 +75,10 @@ class FileServiceQueryTest {
         fileService.saveMeta(meta);
         assertNotNull(meta.getId());
 
-        assertTrue(idsOf(fileService.list(zhangsan.getId(), "all", null)).contains(meta.getId()));
-        assertTrue(idsOf(fileService.list(zhangsan.getId(), "doc", "测试文档")).contains(meta.getId()));
-        assertFalse(idsOf(fileService.list(zhangsan.getId(), "image", null)).contains(meta.getId()));
-        assertFalse(idsOf(fileService.list(lisi.getId(), "all", null)).contains(meta.getId()));
+        assertTrue(idsOf(fileService.list(zhangsan.getId(), "all", null, 1, 20)).contains(meta.getId()));
+        assertTrue(idsOf(fileService.list(zhangsan.getId(), "doc", "测试文档", 1, 20)).contains(meta.getId()));
+        assertFalse(idsOf(fileService.list(zhangsan.getId(), "image", null, 1, 20)).contains(meta.getId()));
+        assertFalse(idsOf(fileService.list(lisi.getId(), "all", null, 1, 20)).contains(meta.getId()));
 
         Map<String, Integer> counts = fileService.countsByCategory(zhangsan.getId());
         assertTrue(counts.get("all") >= 1);
@@ -85,22 +88,99 @@ class FileServiceQueryTest {
     }
 
     @Test
+    void paginationSplitsRecordsAndReportsTotal() {
+        String keyword = "分页专用" + UUID.randomUUID().toString().substring(0, 8);
+        for (int i = 1; i <= 3; i++) {
+            fileService.saveMeta(newMeta(keyword + "-" + i + ".pdf", "pdf"));
+        }
+
+        Page<FileInfo> first = fileService.list(zhangsan.getId(), "all", keyword, 1, 2);
+        assertEquals(3, first.getTotal());
+        assertEquals(2, first.getRecords().size());
+        assertEquals(1, first.getCurrent());
+
+        Page<FileInfo> second = fileService.list(zhangsan.getId(), "all", keyword, 2, 2);
+        assertEquals(3, second.getTotal());
+        assertEquals(1, second.getRecords().size());
+        assertEquals(2, second.getCurrent());
+
+        // 页码越界 → 自动回退到最后一页，而不是空白
+        Page<FileInfo> beyond = fileService.list(zhangsan.getId(), "all", keyword, 99, 2);
+        assertEquals(2, beyond.getCurrent());
+        assertEquals(1, beyond.getRecords().size());
+
+        // 每页上限被夹紧
+        assertEquals(50, fileService.list(zhangsan.getId(), "all", keyword, 1, 100000).getSize());
+    }
+
+    @Test
+    void renameKeepsExtensionAndOnlyTouchesOwnFiles() {
+        FileInfo meta = newMeta("旧名字.pdf", "pdf");
+        fileService.saveMeta(meta);
+
+        // 只给主名 → 自动补原扩展名
+        fileService.rename(meta.getId(), zhangsan.getId(), "新名字");
+        assertTrue(originNames(zhangsan).contains("新名字.pdf"));
+
+        // 同扩展名（大小写不敏感）允许
+        fileService.rename(meta.getId(), zhangsan.getId(), "又改了.PDF");
+        assertTrue(originNames(zhangsan).contains("又改了.PDF"));
+
+        // 改扩展名 → 400
+        BusinessException wrongExt = assertThrows(BusinessException.class,
+                () -> fileService.rename(meta.getId(), zhangsan.getId(), "伪装.exe"));
+        assertEquals(400, wrongExt.getStatus());
+
+        // 空名字 → 400
+        BusinessException empty = assertThrows(BusinessException.class,
+                () -> fileService.rename(meta.getId(), zhangsan.getId(), "   "));
+        assertEquals(400, empty.getStatus());
+
+        // 他人改名 → 404
+        BusinessException foreign = assertThrows(BusinessException.class,
+                () -> fileService.rename(meta.getId(), lisi.getId(), "抢改.pdf"));
+        assertEquals(404, foreign.getStatus());
+    }
+
+    @Test
+    void logicalDeleteHidesRecordFromListDownloadAndStats() {
+        FileInfo meta = newMeta("待删除.pdf", "pdf");
+        fileService.saveMeta(meta);
+
+        long statsBefore = fileService.stats(zhangsan.getId()).getTotal();
+        fileService.delete(meta.getId(), zhangsan.getId());
+
+        assertFalse(idsOf(fileService.list(zhangsan.getId(), "all", "待删除", 1, 20))
+                .contains(meta.getId()));
+        assertEquals(statsBefore - 1, fileService.stats(zhangsan.getId()).getTotal());
+
+        BusinessException download = assertThrows(BusinessException.class,
+                () -> fileService.openForDownload(meta.getId(), zhangsan.getId()));
+        assertEquals(404, download.getStatus());
+
+        // 已删除的记录不能再次改名/删除，也不能被他人删除
+        BusinessException rename = assertThrows(BusinessException.class,
+                () -> fileService.rename(meta.getId(), zhangsan.getId(), "复活.pdf"));
+        assertEquals(404, rename.getStatus());
+        BusinessException foreign = assertThrows(BusinessException.class,
+                () -> fileService.delete(meta.getId(), lisi.getId()));
+        assertEquals(404, foreign.getStatus());
+    }
+
+    @Test
     void freezeRequiresOwnershipAndBlocksDownload() {
         FileInfo meta = newMeta("冻结测试.pdf", "pdf");
         fileService.saveMeta(meta);
 
-        // 他人尝试冻结 → 404，且状态不变
         BusinessException foreign = assertThrows(BusinessException.class,
                 () -> fileService.freeze(meta.getId(), lisi.getId(), true));
         assertEquals(404, foreign.getStatus());
 
-        // 本人冻结 → 可下载校验返回 403（先于磁盘缺失判断）
         fileService.freeze(meta.getId(), zhangsan.getId(), true);
         BusinessException frozen = assertThrows(BusinessException.class,
                 () -> fileService.openForDownload(meta.getId(), zhangsan.getId()));
         assertEquals(403, frozen.getStatus());
 
-        // 解冻后回到"文件已丢失"的 404（测试数据没有真实磁盘文件）
         fileService.freeze(meta.getId(), zhangsan.getId(), false);
         BusinessException missing = assertThrows(BusinessException.class,
                 () -> fileService.openForDownload(meta.getId(), zhangsan.getId()));
@@ -119,7 +199,6 @@ class FileServiceQueryTest {
 
     @Test
     void uploadRejectsOversizeAndDisallowedExtensions() {
-        // 用 11MB 的 Mock 文件验证服务端大小校验；扩展名 .exe 验证白名单
         byte[] big = new byte[11 * 1024 * 1024];
         org.springframework.mock.web.MockMultipartFile oversize =
                 new org.springframework.mock.web.MockMultipartFile("files", "big.pdf", "application/pdf", big);
@@ -139,7 +218,7 @@ class FileServiceQueryTest {
     private FileInfo newMeta(String originName, String ext) {
         FileInfo meta = new FileInfo();
         meta.setOriginName(originName);
-        meta.setStoreName("0123456789abcdef0123456789abcdef." + ext);
+        meta.setStoreName(UUID.randomUUID().toString().replace("-", "") + "." + ext);
         meta.setFilePath("zhangsan/2026/11/" + meta.getStoreName());
         meta.setExt(ext);
         meta.setFileSize(1024L);
@@ -151,11 +230,19 @@ class FileServiceQueryTest {
         return meta;
     }
 
-    private static List<Long> idsOf(List<FileInfo> files) {
-        java.util.List<Long> ids = new java.util.ArrayList<>();
-        for (FileInfo file : files) {
+    private List<Long> idsOf(Page<FileInfo> page) {
+        List<Long> ids = new ArrayList<>();
+        for (FileInfo file : page.getRecords()) {
             ids.add(file.getId());
         }
         return ids;
+    }
+
+    private List<String> originNames(SysUser user) {
+        List<String> names = new ArrayList<>();
+        for (FileInfo file : fileService.list(user.getId(), "all", null, 1, 50).getRecords()) {
+            names.add(file.getOriginName());
+        }
+        return names;
     }
 }

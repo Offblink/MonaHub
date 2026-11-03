@@ -54,6 +54,29 @@
         <property name="dataSource" ref="dataSource"/>
         <property name="mapperLocations" value="classpath:mapper/*.xml"/>
         <property name="typeAliasesPackage" value="com.monahub.entity"/>
+        <!-- 分页插件：只负责给 XML 里的 select 追加 LIMIT 与 count 查询 -->
+        <property name="plugins">
+            <array>
+                <ref bean="mybatisPlusInterceptor"/>
+            </array>
+        </property>
+    </bean>
+
+    <!--
+      MyBatis-Plus 分页拦截器（3.5.5）。
+      注意：这里只用分页能力，不引入 BaseMapper，也不改 XML 里的 SQL 写法；
+      没有指定 DbType，按 JDBC URL 自动识别（MySQL）。
+    -->
+    <bean id="mybatisPlusInterceptor"
+          class="com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor">
+        <property name="interceptors">
+            <list>
+                <bean class="com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor">
+                    <!-- 单页上限，防止 ?size=100000 拖库 -->
+                    <property name="maxLimit" value="100"/>
+                </bean>
+            </list>
+        </property>
     </bean>
 
     <!-- ③ Mapper 接口扫描（注解过滤只扫 @Mapper，避免业务接口被误当 Mapper） -->

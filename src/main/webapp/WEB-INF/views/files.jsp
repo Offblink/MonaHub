@@ -69,7 +69,7 @@
         </article>
     </section>
 
-    <!-- ==================== 上传区 ==================== -->
+    <!-- ==================== 上传区（选择即上传） ==================== -->
     <section class="upload card" id="dropzone" aria-label="上传文件">
         <form id="uploadForm" method="post" action="${ctx}/files/upload" enctype="multipart/form-data">
 
@@ -82,7 +82,7 @@
                     拖入文件，或
                     <label class="link" for="fileInput">点击选择</label>
                 </p>
-                <p class="dz-hint">PDF / Word / 图片 / ZIP · 单个不超过 10MB · 支持多选</p>
+                <p class="dz-hint">PDF / Word / 图片 / ZIP · 单个不超过 10MB · 选择后立即上传</p>
             </div>
 
             <ul class="file-chips" id="fileChips"></ul>
@@ -90,8 +90,8 @@
             <div class="dz-actions" id="dzActions" hidden>
                 <span class="dz-meta" id="dzMeta"></span>
                 <div class="dz-btns">
-                    <button type="button" class="btn btn-ghost btn-sm" id="clearBtn">清空</button>
-                    <button type="submit" class="btn btn-primary btn-sm" id="uploadBtn">开始上传</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="reloadBtn" hidden>刷新列表</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="clearBtn">清空列表</button>
                 </div>
             </div>
 
@@ -152,6 +152,7 @@
 
         <form class="search" method="get" action="${ctx}/files" role="search">
             <input type="hidden" name="category" value="${category}">
+            <input type="hidden" name="size" value="${pageSize}">
             <input type="search" name="q" value="${fn:escapeXml(keyword)}"
                    placeholder="搜索文件名…" aria-label="搜索文件名">
             <button type="submit" class="btn btn-ghost btn-sm">搜索</button>
@@ -173,7 +174,7 @@
                                 当前筛选条件下没有匹配的文件，换个类型或关键字试试。
                             </c:when>
                             <c:otherwise>
-                                把第一个文件拖到上面的上传区，上传成功后会出现在这里。
+                                把第一个文件拖到上面的上传区，选择后会自动上传并出现在这里。
                             </c:otherwise>
                         </c:choose>
                     </p>
@@ -186,7 +187,7 @@
                     <span>上传时间</span>
                     <span>状态</span>
                     <span>下载</span>
-                    <span>操作</span>
+                    <span class="head-actions">操作</span>
                 </div>
 
                 <c:forEach var="f" items="${files}">
@@ -223,34 +224,100 @@
                             </c:choose>
 
                             <form method="post" action="${ctx}/files/${f.id}/freeze"
-                                  class="inline-form freeze-form"
-                                  data-file="${fn:escapeXml(f.originName)}"
-                                  data-action="${f.frozen ? '解冻' : '冻结'}">
+                                  class="inline-form js-action-form"
+                                  data-kind="freeze"
+                                  data-action="${f.frozen ? '解冻' : '冻结'}"
+                                  data-file="${fn:escapeXml(f.originName)}">
                                 <input type="hidden" name="frozen" value="${f.frozen ? 0 : 1}">
                                 <input type="hidden" name="category" value="${category}">
                                 <input type="hidden" name="q" value="${fn:escapeXml(keyword)}">
+                                <input type="hidden" name="page" value="${page.current}">
+                                <input type="hidden" name="size" value="${pageSize}">
                                 <button type="submit" class="btn btn-ghost btn-sm">
                                     ${f.frozen ? '解冻' : '冻结'}
                                 </button>
                             </form>
+
+                            <form method="post" action="${ctx}/files/${f.id}/rename"
+                                  class="inline-form js-rename-form"
+                                  data-file="${fn:escapeXml(f.originName)}"
+                                  data-ext="${fn:escapeXml(f.ext)}">
+                                <input type="hidden" name="newName" value="">
+                                <input type="hidden" name="category" value="${category}">
+                                <input type="hidden" name="q" value="${fn:escapeXml(keyword)}">
+                                <input type="hidden" name="page" value="${page.current}">
+                                <input type="hidden" name="size" value="${pageSize}">
+                                <button type="submit" class="btn btn-ghost btn-sm">重命名</button>
+                            </form>
+
+                            <form method="post" action="${ctx}/files/${f.id}/delete"
+                                  class="inline-form js-action-form"
+                                  data-kind="delete"
+                                  data-action="删除"
+                                  data-file="${fn:escapeXml(f.originName)}">
+                                <input type="hidden" name="category" value="${category}">
+                                <input type="hidden" name="q" value="${fn:escapeXml(keyword)}">
+                                <input type="hidden" name="page" value="${page.current}">
+                                <input type="hidden" name="size" value="${pageSize}">
+                                <button type="submit" class="btn btn-ghost btn-sm btn-quiet-danger">删除</button>
+                            </form>
                         </div>
                     </article>
                 </c:forEach>
+
+                <c:if test="${page.pages > 1}">
+                    <c:url var="prevUrl" value="/files">
+                        <c:param name="category" value="${category}"/>
+                        <c:param name="q" value="${keyword}"/>
+                        <c:param name="size" value="${pageSize}"/>
+                        <c:param name="page" value="${page.current - 1}"/>
+                    </c:url>
+                    <c:url var="nextUrl" value="/files">
+                        <c:param name="category" value="${category}"/>
+                        <c:param name="q" value="${keyword}"/>
+                        <c:param name="size" value="${pageSize}"/>
+                        <c:param name="page" value="${page.current + 1}"/>
+                    </c:url>
+
+                    <nav class="pager" aria-label="分页">
+                        <c:choose>
+                            <c:when test="${page.current > 1}">
+                                <a class="btn btn-ghost btn-sm" href="${prevUrl}">上一页</a>
+                            </c:when>
+                            <c:otherwise>
+                                <span class="btn btn-ghost btn-sm is-disabled" aria-disabled="true">上一页</span>
+                            </c:otherwise>
+                        </c:choose>
+
+                        <span class="pager-info">
+                            第 ${page.current} / ${page.pages} 页 · 共 ${page.total} 个文件
+                        </span>
+
+                        <c:choose>
+                            <c:when test="${page.current < page.pages}">
+                                <a class="btn btn-ghost btn-sm" href="${nextUrl}">下一页</a>
+                            </c:when>
+                            <c:otherwise>
+                                <span class="btn btn-ghost btn-sm is-disabled" aria-disabled="true">下一页</span>
+                            </c:otherwise>
+                        </c:choose>
+                    </nav>
+                </c:if>
             </c:otherwise>
         </c:choose>
     </section>
 
-    <p class="hub-foot">
-        磁盘存文件，数据库存元信息 · 下载只认文件 ID · 路径由服务端从库中取
-    </p>
 </main>
 
-<!-- ==================== 冻结确认模态（自绘，不用原生 confirm） ==================== -->
-<div class="modal" id="freezeModal" hidden>
+<!-- ==================== 通用操作模态（冻结/解冻/删除/重命名） ==================== -->
+<div class="modal" id="actionModal" hidden>
     <div class="modal-card glass" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-        <h3 id="modalTitle">冻结该文件？</h3>
-        <p id="modalText">冻结后你自己也无法下载，可随时解冻。</p>
+        <h3 id="modalTitle">确认操作</h3>
+        <p id="modalText"></p>
         <p class="modal-file" id="modalFile"></p>
+        <input type="text" id="modalInput" class="modal-input" maxlength="255" hidden
+               aria-label="新的文件名" autocomplete="off">
+        <p class="modal-hint" id="modalHint" hidden></p>
         <div class="modal-actions">
             <button type="button" class="btn btn-ghost btn-sm" id="modalCancel">取消</button>
             <button type="button" class="btn btn-danger btn-sm" id="modalOk">确认</button>

@@ -3,10 +3,11 @@
 基于 **Spring + Spring MVC + MyBatis（SSM）** 的资料上传下载系统，对应《SSM 实训案例任务书》V2.0。
 在任务书必做项（登录 / 拦截器 / 上传 / 列表 / 下载）之上，实现了老师口头加料与 F5：
 
-- 同时多文件上传，服务端**有界线程池并发落盘**，逐文件独立结果与失败原因
-- 文件按 **文档 / 图片 / 压缩包** 分类筛选 + 文件名搜索
-- 上传者**冻结 / 解冻**自己的文件（冻结后本人也不可下载）
+- 选择即上传：同时多文件，服务端**有界线程池并发落盘**，逐文件独立结果与失败原因
+- 文件按 **文档 / 图片 / 压缩包** 分类筛选 + 文件名搜索 + **分页**（MyBatis-Plus 分页插件，SQL 仍在 XML）
+- 上传者可**冻结 / 解冻 / 重命名 / 删除**自己的文件（删除为逻辑删除）
 - **下载次数统计** + AOP 下载日志（F5）
+- 口令使用 **BCrypt**（自带随机盐），库里无明文
 - 深色 / 浅色主题切换（偏好记忆，首屏无闪烁）
 
 界面为 JSP + JSTL 手写，视觉参考 `Gasp-Design` 的暗色高对比与绿/蓝/紫渐变；
@@ -21,6 +22,8 @@ GSAP 3.12.7 已 vendored 到 `static/vendor/`，**运行期不依赖任何 CDN**
 | JDK | OpenJDK | 17 |
 | 框架 | Spring（IoC / MVC / JDBC / TX / AOP） | 5.3.31 |
 | 持久层 | MyBatis + XML 映射 | 3.5.15 / mybatis-spring 2.0.7 |
+| 分页 | MyBatis-Plus PaginationInnerInterceptor（仅插件，不用 BaseMapper） | 3.5.5 / jsqlparser 4.6 |
+| 口令 | Spring Security Crypto · BCryptPasswordEncoder | 5.7.11 |
 | 连接池 | HikariCP | 4.0.3 |
 | 数据库 | MySQL（utf8mb4） | 5.7+（本机 9.3 实测） |
 | 视图 | JSP + JSTL | servlet-api 4.0.1 / jstl 1.2 |
@@ -40,7 +43,8 @@ MonaHub/
 ├─ pom.xml                     # war + 依赖版本 + cargo 本地 Tomcat 启动
 ├─ sql/
 │  ├─ 01_schema.sql            # 建库建表（sys_user / file_info / download_log）
-│  └─ 02_data.sql              # 演示账号（密文 + 盐，可重复执行）
+│  ├─ 02_data.sql              # 演示账号（BCrypt 哈希，可重复执行）
+│  └─ 03_migrate_bcrypt_soft_delete.sql  # 旧库增量迁移（已有库才需要）
 ├─ docs/
 │  └─ SSM实训-设计方案与规格.md  # 设计规格（动手前定稿）
 └─ src/
@@ -116,7 +120,8 @@ mvn clean package
 | `zhangsan` | `123456` | 张三 |
 | `lisi` | `123456` | 李四 |
 
-库里只存 `sha256(salt + ":" + 明文)` 与随机盐，无任何明文口令。
+库里只存 BCrypt 哈希（形如 `$2a$10$...`，哈希自带随机盐），无任何明文口令。
+`salt` 列保留为任务书表结构的兼容位（写空串），不再单独使用。
 
 ---
 
@@ -156,7 +161,15 @@ registry.addInterceptor(new LoginInterceptor())
 - 每文件独立事务、独立结果；落盘成功但入库失败时删除孤文件（补偿）。
 - 页面逐条显示成功/失败原因；浏览器侧每个文件一个 XHR，可看到各自进度条。
 
-### 4.4 下载安全
+### 4.4 重命名与逻辑删除
+
+- **重命名**：`POST /files/{id}/rename`，只改展示名 `origin_name`，磁盘 UUID 名不动；
+  必须保持原扩展名（只给主名会自动补），杜绝"名字是 .pdf、内容其实是 exe"的欺骗面；仅本人可改。
+- **逻辑删除**：`POST /files/{id}/delete`，`deleted = 1`；记录与磁盘文件保留（管理员可恢复/清理），
+  但列表、统计、下载、改名全部过滤掉，删除后直连下载 id 返回 404。
+- 两者都带 `uploader_id` 条件，改不到/删不到别人的记录。
+
+### 4.5 下载安全
 
 ```
 fileId → WHERE id=? AND uploader_id=? → 冻结判断 → 磁盘存在判断 → canonical 前缀校验 → 流式输出
@@ -176,10 +189,12 @@ fileId → WHERE id=? AND uploader_id=? → 冻结判断 → 磁盘存在判断 
 | GET | `/login` | 登录页（放行） |
 | POST | `/login` | 登录提交（放行） |
 | POST | `/logout` | 退出 |
-| GET | `/files` | 列表，`category=all\|doc\|image\|archive`、`q=关键字` |
+| GET | `/files` | 分页列表：`category=all\|doc\|image\|archive`、`q=关键字`、`page`、`size`（≤50） |
 | POST | `/files/upload` | 多文件上传（字段 `files`）；XHR 时返回 JSON 逐条结果 |
 | POST | `/files/{id}/freeze` | `frozen=1` 冻结 / `0` 解冻（仅本人） |
-| GET | `/files/{id}/download` | 下载（仅本人、非冻结） |
+| POST | `/files/{id}/rename` | 重命名展示名（`newName`，扩展名不可改） |
+| POST | `/files/{id}/delete` | 逻辑删除（仅本人） |
+| GET | `/files/{id}/download` | 下载（仅本人、非冻结、未删除） |
 | GET | `/error` | 友好错误页（容器 404/500 也转发到这里） |
 
 ---
@@ -188,8 +203,8 @@ fileId → WHERE id=? AND uploader_id=? → 冻结判断 → 磁盘存在判断 
 
 | 表 | 关键字段 | 说明 |
 |---|---|---|
-| `sys_user` | `username`(唯一)、`password`(64)、`salt`(32)、`real_name` | 口令为 `sha256(salt:明文)` 十六进制 |
-| `file_info` | `origin_name`、`store_name`、`file_path`、`ext`、`file_size`、`content_type`、`uploader_id`、`create_time`、`status`、`download_count` | `status`：1 正常 / 0 冻结；`idx_uploader_time` 支撑列表 |
+| `sys_user` | `username`(唯一)、`password`(72)、`salt`(32，兼容位)、`real_name` | 口令为 BCrypt 哈希（自带盐），`salt` 写空串 |
+| `file_info` | `origin_name`、`store_name`、`file_path`、`ext`、`file_size`、`content_type`、`uploader_id`、`create_time`、`status`、`deleted`、`download_count` | `status`：1 正常 / 0 冻结；`deleted`：0 正常 / 1 逻辑删除；`idx_uploader_time` 支撑列表 |
 | `download_log` | `file_id`、`downloader_id`、`download_time`、`ip` | F5，AOP 写入 |
 
 磁盘存文件、数据库存元信息；**没有 BLOB 字段**。
@@ -206,7 +221,8 @@ fileId → WHERE id=? AND uploader_id=? → 冻结判断 → 磁盘存在判断 
 - 右上角按钮切换，支持 View Transitions 圆形涟漪；`prefers-reduced-motion` 下直接切换。
 - GSAP 只做四件事：标题逐字入场、背景光球视差、统计数字递增、列表行 stagger；
   库缺席或减少动效时页面退化为静态但完全可用。
-- 上传交互渐进增强：无脚本时退化为普通表单提交（服务端行为完全一致）。
+- 上传交互：**选择/拖入即上传**（每个文件一个 XHR，进度与结果逐条显示），没有"开始上传"按钮；
+  无脚本时退化为普通表单提交（服务端行为完全一致）。
 
 ---
 
@@ -217,8 +233,9 @@ fileId → WHERE id=? AND uploader_id=? → 冻结判断 → 磁盘存在判断 
 mvn test
 ```
 
-覆盖：口令加盐、文件名纯函数与分类、存储 UUID/分目录/路径穿越、拦截器重定向、
-登录成功/失败、列表归属隔离、分类过滤、冻结与越权下载。
+覆盖：BCrypt 哈希与校验、文件名纯函数与分类、存储 UUID/分目录/路径穿越、拦截器重定向、
+登录成功/失败、列表归属隔离、分类过滤、分页（总数/越界回退/每页上限）、
+重命名（补扩展名/禁改扩展名/越权）、逻辑删除、冻结与越权下载。
 
 ### 8.1 curl 端到端（四条验收的脚本化复验）
 
@@ -251,13 +268,17 @@ cmp 作业.pdf downloaded.pdf && echo BYTES_OK
 
 | 项 | 结果 |
 |---|---|
-| `mvn test` | **21 / 21 通过**（单元 + MySQL 集成） |
+| `mvn test` | **23 / 23 通过**（单元 + MySQL 集成） |
 | 未登录 `/files` | 302 → `/monahub/login` |
 | 中文名 PDF + PNG 并发上传 | 2 成功入库落盘；`.exe` 被服务端拒绝并给出原因 |
 | 下载 | 200，`filename*=UTF-8''…`，字节与源文件一致，`download_count` +1，`download_log` +1 |
 | 冻结后下载 | 403「该文件已被上传者冻结，暂不可下载」 |
 | 换 `lisi` 直接访问他人 id | 404「文件不存在或无权访问」 |
 | 11MB 文件 | 413「文件太大了：单个文件不超过 10MB，一次最多 50MB」 |
+| 分页 | 8 条数据 → 「第 1 / 2 页」，每页 6 条；`page=99` 回退到第 2 页；`size=100000` 夹紧到 50 |
+| 重命名 | 只填主名自动补 `.pdf`；改成 `.exe` → 400「只能修改文件名，不能修改扩展名」；他人 → 404 |
+| 逻辑删除 | 列表/统计立即消失（8→7），原 id 下载返回 404；他人删除 → 404 |
+| 选择即上传 | 选中文件后无需按钮，自动上传、显示进度，成功后自动刷新列表 |
 
 ### 8.3 界面截图（`docs/screenshots/`）
 
@@ -266,7 +287,8 @@ cmp 作业.pdf downloaded.pdf && echo BYTES_OK
 | `login-dark.webp` / `login-light.webp` | 登录页深浅两主题 |
 | `dashboard-dark.webp` / `dashboard-light.webp` | 工作台（统计、上传区、分类胶囊、文件列表） |
 | `dashboard-mobile-light.webp` | 390px 移动端（无横向溢出） |
-| `freeze-modal-light.webp` | 自绘冻结确认模态 |
+| `rename-modal-light.webp` | 重命名模态（输入框预填、扩展名提示） |
+| `delete-modal-light.webp` | 逻辑删除确认模态 |
 | `error-404-light.webp` | 越权/缺失的友好错误页 |
 
 ---
@@ -287,12 +309,12 @@ cmp 作业.pdf downloaded.pdf && echo BYTES_OK
 未做（任务书列为课后拓展或明确删减）：
 
 - MD5 去重与"重复上传"提示
-- 文件逻辑删除（`status=-1` 语义已预留，UI 未做）
-- 分页、ZIP 打包、病毒扫描、完整操作审计
+- ZIP 打包、完整操作审计
 - 注册 / 改密 / 角色权限
+- 逻辑删除后的回收站/物理清盘（记录与磁盘文件目前保留，由管理员清理）
 
-安全说明：课内演示用单轮加盐 SHA-256；生产应换 PBKDF2/BCrypt 并提高迭代，
-口令传输必须走 HTTPS。
+安全说明：口令使用 BCrypt（cost 10）；生产可提高 cost 并配合 HTTPS 传输。
+逻辑删除不是"物理删除"，敏感数据仍建议配套保留期与清理任务。
 
 ---
 

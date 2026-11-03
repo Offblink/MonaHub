@@ -14,35 +14,45 @@
         <result property="uploaderId" column="uploader_id"/>
         <result property="createTime" column="create_time"/>
         <result property="status" column="status"/>
+        <result property="deleted" column="deleted"/>
         <result property="downloadCount" column="download_count"/>
     </resultMap>
+
+    <sql id="columns">
+        id, origin_name, store_name, file_path, ext, file_size,
+        content_type, uploader_id, create_time, status, deleted, download_count
+    </sql>
 
     <!-- 元信息入库；useGeneratedKeys 回填自增主键 -->
     <insert id="insert" parameterType="com.monahub.entity.FileInfo"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO file_info
             (origin_name, store_name, file_path, ext, file_size,
-             content_type, uploader_id, create_time, status, download_count)
+             content_type, uploader_id, create_time, status, deleted, download_count)
         VALUES
             (#{originName}, #{storeName}, #{filePath}, #{ext}, #{fileSize},
-             #{contentType}, #{uploaderId}, #{createTime}, #{status}, #{downloadCount})
+             #{contentType}, #{uploaderId}, #{createTime}, #{status}, 0, #{downloadCount})
     </insert>
 
-    <!-- 下载：id + uploader_id 双条件，越权查询返回 null -->
+    <!-- 归属查询：id + uploader_id + 未删除，任一不满足都返回 null -->
     <select id="selectByIdAndUploader" resultMap="fileMap">
-        SELECT id, origin_name, store_name, file_path, ext, file_size,
-               content_type, uploader_id, create_time, status, download_count
+        SELECT <include refid="columns"/>
         FROM file_info
         WHERE id = #{id}
           AND uploader_id = #{uploaderId}
+          AND deleted = 0
     </select>
 
-    <!-- 列表：本人 + 可选分类扩展名 + 可选关键字，全部走 #{} 预编译参数 -->
-    <select id="selectByUploader" resultMap="fileMap">
-        SELECT id, origin_name, store_name, file_path, ext, file_size,
-               content_type, uploader_id, create_time, status, download_count
+    <!--
+      分页列表。SQL 里不写 LIMIT：由 MyBatis-Plus 的 PaginationInnerInterceptor
+      自动追加 LIMIT/OFFSET，并按同一条语句生成 count 查询。
+      条件全部走 #{} 预编译参数。
+    -->
+    <select id="selectPage" resultMap="fileMap">
+        SELECT <include refid="columns"/>
         FROM file_info
         WHERE uploader_id = #{uploaderId}
+          AND deleted = 0
         <if test="exts != null and exts.size() > 0">
             AND ext IN
             <foreach collection="exts" item="e" open="(" separator="," close=")">#{e}</foreach>
@@ -57,22 +67,27 @@
         SELECT ext AS ext, COUNT(*) AS cnt
         FROM file_info
         WHERE uploader_id = #{uploaderId}
+          AND deleted = 0
         GROUP BY ext
     </select>
 
     <select id="countByUploader" resultType="long">
-        SELECT COUNT(*) FROM file_info WHERE uploader_id = #{uploaderId}
+        SELECT COUNT(*) FROM file_info
+        WHERE uploader_id = #{uploaderId} AND deleted = 0
     </select>
 
     <select id="countByUploaderSince" resultType="long">
         SELECT COUNT(*) FROM file_info
-        WHERE uploader_id = #{uploaderId} AND create_time &gt;= #{since}
+        WHERE uploader_id = #{uploaderId}
+          AND deleted = 0
+          AND create_time &gt;= #{since}
     </select>
 
     <select id="sumDownloadCount" resultType="long">
         SELECT COALESCE(SUM(download_count), 0)
         FROM file_info
         WHERE uploader_id = #{uploaderId}
+          AND deleted = 0
     </select>
 
     <!-- 冻结/解冻：WHERE 带 uploader_id，越权改不动别人的记录 -->
@@ -81,12 +96,32 @@
         SET status = #{status}
         WHERE id = #{id}
           AND uploader_id = #{uploaderId}
+          AND deleted = 0
     </update>
 
     <update id="incrementDownloadCount">
         UPDATE file_info
         SET download_count = download_count + 1
         WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <!-- 重命名：只更新展示名；扩展名由 Service 校验，不允许借机改类型 -->
+    <update id="rename">
+        UPDATE file_info
+        SET origin_name = #{originName}
+        WHERE id = #{id}
+          AND uploader_id = #{uploaderId}
+          AND deleted = 0
+    </update>
+
+    <!-- 逻辑删除：记录保留，列表/下载/统计全部过滤掉 -->
+    <update id="softDelete">
+        UPDATE file_info
+        SET deleted = 1
+        WHERE id = #{id}
+          AND uploader_id = #{uploaderId}
+          AND deleted = 0
     </update>
 
 </mapper>

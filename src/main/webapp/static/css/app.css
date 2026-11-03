@@ -361,13 +361,6 @@ button {
 .dot-blue { background: var(--blue); box-shadow: 0 0 12px rgba(96, 165, 250, 0.8); }
 .dot-violet { background: var(--violet); box-shadow: 0 0 12px rgba(167, 139, 250, 0.8); }
 
-.hero-note {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--fg-mute);
-    letter-spacing: 0.04em;
-}
-
 .panel {
     padding: 38px 36px 30px;
     display: flex;
@@ -398,12 +391,6 @@ button {
     background: rgba(251, 113, 133, 0.1);
     border-color: rgba(251, 113, 133, 0.35);
     color: #ffb3bf;
-}
-
-.alert-ok {
-    background: rgba(74, 222, 128, 0.08);
-    border-color: rgba(74, 222, 128, 0.3);
-    color: #a7f3c2;
 }
 
 .login-form {
@@ -499,12 +486,6 @@ button {
     border-color: rgba(96, 165, 250, 0.6);
     color: #bfdbfe;
     transform: translateY(-1px);
-}
-
-.panel-foot {
-    font-size: 12px;
-    color: var(--fg-mute);
-    text-align: center;
 }
 
 /* ---------------- 工作台 ---------------- */
@@ -899,11 +880,16 @@ button {
 
 .search {
     display: flex;
+    flex: 1 1 260px;
+    max-width: 380px;
+    min-width: 200px;
     gap: 8px;
 }
 
 .search input {
-    width: 220px;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
     padding: 9px 13px;
     border-radius: 10px;
     border: 1px solid var(--border);
@@ -928,7 +914,7 @@ button {
 .list-head,
 .row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 92px 148px 96px 64px 200px;
+    grid-template-columns: minmax(0, 1fr) 92px 148px 96px 64px 300px;
     gap: 14px;
     align-items: center;
     padding: 12px 16px;
@@ -986,6 +972,10 @@ button {
 .cell {
     min-width: 0;
     font-size: 13.5px;
+}
+
+.head-actions {
+    text-align: left;
 }
 
 .cell-muted {
@@ -1063,8 +1053,35 @@ button {
 
 .row-actions {
     display: flex;
-    justify-content: flex-end;
+    flex-wrap: wrap;
+    justify-content: flex-start;
     gap: 8px;
+}
+
+.btn-quiet-danger {
+    color: var(--fg-dim);
+}
+
+.btn-quiet-danger:hover {
+    color: #ffb3bf;
+    border-color: rgba(251, 113, 133, 0.5);
+    background: rgba(251, 113, 133, 0.08);
+}
+
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 16px 12px 12px;
+    border-top: 1px solid var(--border);
+}
+
+.pager-info {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--fg-mute);
+    font-variant-numeric: tabular-nums;
 }
 
 .empty {
@@ -1107,13 +1124,6 @@ button {
     font-size: 13px;
 }
 
-.hub-foot {
-    text-align: center;
-    font-size: 11.5px;
-    color: var(--fg-mute);
-    letter-spacing: 0.02em;
-}
-
 /* ---------------- 模态 ---------------- */
 
 .modal {
@@ -1138,6 +1148,9 @@ button {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    /* 模态用不透明卡片：玻璃半透明会让后面的列表/搜索框透出来一块 */
+    background: var(--card);
+    backdrop-filter: none;
 }
 
 .modal-card h3 {
@@ -1160,6 +1173,28 @@ button {
     font-size: 12.5px;
     color: var(--fg);
     overflow-wrap: anywhere;
+}
+
+.modal-input {
+    width: 100%;
+    margin-top: 4px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background: rgba(6, 6, 10, 0.75);
+    color: var(--fg);
+    font-size: 14px;
+}
+
+.modal-input:focus {
+    outline: none;
+    border-color: rgba(74, 222, 128, 0.65);
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.12);
+}
+
+.modal-hint {
+    font-size: 12px;
+    color: var(--fg-mute);
 }
 
 .modal-actions {
@@ -1274,6 +1309,8 @@ button {
 
     .search {
         width: 100%;
+        max-width: none;
+        flex: 1 1 100%;
     }
 
     .toolbar {
@@ -1555,12 +1592,18 @@ button {
     color: #b91c1c;
 }
 
-:root[data-theme="light"] .alert-ok {
-    color: #15803d;
-}
 
 :root[data-theme="light"] .pass-toggle:hover {
     background: rgba(17, 24, 39, 0.06);
+}
+
+:root[data-theme="light"] .modal-input {
+    background: #ffffff;
+    border-color: #d6dbe3;
+}
+
+:root[data-theme="light"] .btn-quiet-danger:hover {
+    color: #b91c1c;
 }
 
 /* ---------------- 主题切换按钮 ---------------- */
@@ -1621,4 +1664,11 @@ button {
         animation: none;
         clip-path: none;
     }
+}
+
+/* 模态卡片必须不透明：玻璃卡片会让背后的列表/搜索框透出来一块亮斑 */
+.modal-card,
+:root[data-theme="light"] .modal-card {
+    background: var(--card);
+    backdrop-filter: none;
 }
