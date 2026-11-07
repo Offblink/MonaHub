@@ -957,6 +957,10 @@ button {
     background: rgba(255, 255, 255, 0.025);
 }
 
+.row[data-open-url][data-frozen="false"] {
+    cursor: pointer;
+}
+
 /* 扫光：Gasp-Design shimmer-cards 的 CSS 版 */
 .row::after {
     content: "";

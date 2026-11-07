@@ -191,7 +191,9 @@
                 </div>
 
                 <c:forEach var="f" items="${files}">
-                    <article class="row" data-cat="${f.categoryKey}">
+                    <article class="row" data-cat="${f.categoryKey}"
+                             data-open-url="${ctx}/files/${f.id}/download?inline=1"
+                             data-frozen="${f.frozen}">
                         <div class="cell file-cell">
                             <span class="type-ico" data-cat="${f.categoryKey}">
                                 <c:out value="${fn:toUpperCase(f.ext)}"/>

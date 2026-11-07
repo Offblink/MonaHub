@@ -157,7 +157,6 @@ public class FileController {
                          RedirectAttributes redirectAttributes) {
         SysUser user = currentUser(session);
         fileService.delete(id, user.getId());
-        redirectAttributes.addFlashAttribute("message", "已删除，列表与统计中不再显示");
         return backToList(redirectAttributes, category, keyword, pageNo, pageSize);
     }
 
@@ -166,6 +165,7 @@ public class FileController {
      */
     @GetMapping("/{id}/download")
     public void download(@PathVariable("id") Long id,
+                         @RequestParam(value = "inline", defaultValue = "false") boolean inline,
                          HttpServletRequest request,
                          HttpServletResponse response,
                          HttpSession session) throws IOException {
@@ -185,7 +185,7 @@ public class FileController {
         // RFC 5987：filename* 用 UTF-8 百分号编码，中文名在各浏览器都不乱码；
         // filename 保留 ASCII 退化名，兼容老客户端
         response.setHeader("Content-Disposition",
-                "attachment; filename=\"" + fallbackName + "\"; filename*=UTF-8''" + encodedName);
+                (inline ? "inline" : "attachment") + "; filename=\"" + fallbackName + "\"; filename*=UTF-8''" + encodedName);
         response.setHeader("X-Content-Type-Options", "nosniff");
 
         try (InputStream in = Files.newInputStream(path)) {

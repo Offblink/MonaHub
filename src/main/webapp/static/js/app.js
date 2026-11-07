@@ -570,6 +570,33 @@
         });
     }
 
+    /* ---------------- 点击文件卡片打开文件（本机服务 inline 输出，新标签页） ---------------- */
+    document.addEventListener('click', function (event) {
+        if (event.button !== 0 || event.defaultPrevented) {
+            return;
+        }
+        var row = event.target.closest ? event.target.closest('.row[data-open-url]') : null;
+        if (!row || row.getAttribute('data-frozen') === 'true') {
+            return;
+        }
+        // 不抢链接/按钮/表单的点击；有文本选区时不触发（防止拖选文件名误开）
+        if (event.target.closest('a, button, form, input, label, select, textarea')
+                || String(window.getSelection() || '').length > 0) {
+            return;
+        }
+        window.open(row.getAttribute('data-open-url'), '_blank');
+    });
+
+    /* ---------------- 冻结/重命名/删除是整页刷新：记住并恢复滚动位置 ---------------- */
+    try {
+        var savedScroll = sessionStorage.getItem('monahub:restoreScroll');
+        if (savedScroll !== null) {
+            sessionStorage.removeItem('monahub:restoreScroll');
+            window.scrollTo(0, parseInt(savedScroll, 10) || 0);
+        }
+    } catch (ignore) {
+    }
+
     /* ---------------- 冻结 / 解冻 / 删除 / 重命名 共用一个模态 ---------------- */
     var modal = document.getElementById('actionModal');
     if (modal) {
@@ -692,6 +719,10 @@
             }
             var form = pendingForm;
             closeModal();
+            try {
+                sessionStorage.setItem('monahub:restoreScroll', String(window.scrollY || 0));
+            } catch (ignore) {
+            }
             form.submit();
         });
     }
