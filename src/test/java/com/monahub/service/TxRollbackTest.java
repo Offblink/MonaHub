@@ -23,12 +23,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 声明式事务回滚实证（实验二任务 6.5）。
  *
  * <p>本类<b>不加</b>类级 @Transactional：回滚边界完全由
- * {@link TransactionTemplate}（即 applicationContext.xml 装配的
+ * {@link TransactionTemplate}（即 {@code SpringConfig} 装配的
  * DataSourceTransactionManager）控制，观察到的"行消失"就是真回滚，
  * 不是测试事务的假象。</p>
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "classpath:spring/applicationContext.xml")
+@ContextConfiguration(classes = com.monahub.config.SpringConfig.class)
 class TxRollbackTest {
 
     @Autowired

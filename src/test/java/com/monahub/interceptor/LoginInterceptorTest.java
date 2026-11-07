@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 拦截器只做两件事：已登录放行、未登录 302 到 /login（带上下文路径）。
- * 放行清单在 WebConfig 里，这里验证拦截器本身。
+ * 放行清单在 SpringMvcConfig 里，这里验证拦截器本身。
  */
 class LoginInterceptorTest {
 

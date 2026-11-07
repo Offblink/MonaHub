@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * curl 端到端脚本覆盖。</p>
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "classpath:spring/applicationContext.xml")
+@ContextConfiguration(classes = com.monahub.config.SpringConfig.class)
 @Transactional
 class FileServiceQueryTest {
 

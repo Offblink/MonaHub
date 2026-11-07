@@ -9,7 +9,7 @@ import javax.servlet.http.HttpSession;
 /**
  * 统一登录校验：未登录访问受保护资源一律 302 回登录页。
  *
- * <p>放行路径不写在这里，而写在 {@link com.monahub.config.WebConfig#addInterceptors}
+ * <p>放行路径不写在这里，而写在 {@link com.monahub.config.SpringMvcConfig#addInterceptors}
  * —— 拦截器只负责"拦"，"哪些不拦"由注册处集中声明，便于答辩时逐条指认。</p>
  */
 public class LoginInterceptor implements HandlerInterceptor {

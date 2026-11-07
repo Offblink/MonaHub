@@ -9,80 +9,16 @@
 
     <!--
       ============================================================
-      ① 父容器：Service / Mapper / 事务 / 数据源 / 上传线程池
+      Servlet / Filter / Listener 已全部改为全注解注册（实验二任务 3.1）：
+      ContextLoaderListener、DispatcherServlet、CharacterEncodingFilter
+      由 ServletContainersInitConfig（AbstractAnnotationConfigDispatcherServletInitializer）
+      经 Servlet 3.0 SPI 声明，本文件不再重复声明。
       ============================================================
-      ContextLoaderListener 创建根 WebApplicationContext；
-      DispatcherServlet 子容器可以看到父容器的 Bean，反之不行。
+      这里只保留 Servlet 规范仅有的声明式能力（无编程式 API）：
+      容器级错误页与会话策略。
     -->
-    <context-param>
-        <param-name>contextConfigLocation</param-name>
-        <param-value>classpath:spring/applicationContext.xml</param-value>
-    </context-param>
-    <listener>
-        <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
-    </listener>
 
-    <!--
-      ============================================================
-      ② POST 乱码：CharacterEncodingFilter 必须排在过滤器链最前
-      ============================================================
-      forceEncoding=true 连响应一起强制 UTF-8。
-      缺了它，上传表单里的中文原始文件名会变成 ???（任务书 F2 的典型坑）。
-    -->
-    <filter>
-        <filter-name>encodingFilter</filter-name>
-        <filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
-        <init-param>
-            <param-name>encoding</param-name>
-            <param-value>UTF-8</param-value>
-        </init-param>
-        <!--
-          只强制请求编码：上传表单/中文参数不乱码。
-          不强制响应编码 —— 下载接口要原样输出 application/pdf 等二进制类型，
-          响应上的 ";charset=UTF-8" 由 JSP 的 pageEncoding 自行声明。
-        -->
-        <init-param>
-            <param-name>forceRequestEncoding</param-name>
-            <param-value>true</param-value>
-        </init-param>
-        <init-param>
-            <param-name>forceResponseEncoding</param-name>
-            <param-value>false</param-value>
-        </init-param>
-    </filter>
-    <filter-mapping>
-        <filter-name>encodingFilter</filter-name>
-        <url-pattern>/*</url-pattern>
-    </filter-mapping>
-
-    <!--
-      ============================================================
-      ③ SpringMVC 子容器：Controller / 拦截器 / 视图解析 / 静态资源
-      ============================================================
-      映射 "/" 而非 "*.do"：REST 风格 URL（/files、/files/1/download）
-      全部交给 DispatcherServlet；/static/** 由 <mvc:resources> 兜底。
-    -->
-    <servlet>
-        <servlet-name>monahub</servlet-name>
-        <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
-        <init-param>
-            <param-name>contextConfigLocation</param-name>
-            <param-value>classpath:spring/spring-mvc.xml</param-value>
-        </init-param>
-        <load-on-startup>1</load-on-startup>
-    </servlet>
-    <servlet-mapping>
-        <servlet-name>monahub</servlet-name>
-        <url-pattern>/</url-pattern>
-    </servlet-mapping>
-
-    <!--
-      ============================================================
-      ④ 兜底错误页：容器级 404/500（比如直接访问不存在的 URL）
-      ============================================================
-      /error 已在拦截器放行清单里；页面上读取
-      javax.servlet.error.status_code / message 渲染友好文案。
-    -->
+    <!-- 容器级 404/500（直接访问不存在的 URL）转发到 /error 友好页 -->
     <error-page>
         <error-code>404</error-code>
         <location>/error</location>

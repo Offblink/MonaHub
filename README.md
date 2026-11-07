@@ -34,7 +34,8 @@ GSAP 3.12.7 已 vendored 到 `static/vendor/`，**运行期不依赖任何 CDN**
 | 服务器 | Tomcat | 9.x（**不能**用 Tomcat 10+，jakarta 命名空间不兼容） |
 | 前端 | 原生 CSS/JS + GSAP 3.12.7（本地） | — |
 
-> 没有使用 Spring Boot：启动、装配、DispatcherServlet 全部按 SSM 传统方式显式配置。
+> 没有使用 Spring Boot：**SSM 全注解显式配置**——`ServletContainersInitConfig`（取代 web.xml 的 listener/servlet/filter）+
+> `SpringConfig`（父容器）+ `SpringMvcConfig`（子容器），与指导书任务 3 三类一一对应；薄 web.xml 仅留 error-page/session-config。
 
 ---
 
@@ -52,21 +53,23 @@ MonaHub/
 │  └─ SSM实训-设计方案与规格.md  # 设计规格（动手前定稿）
 └─ src/
    ├─ main/java/com/monahub/
-   │  ├─ config/WebConfig.java          # WebMvcConfigurer#addInterceptors 注册拦截器
+   │  ├─ config/                        # 全注解三件套：
+   │  │    ServletContainersInitConfig  #   取代 web.xml：父/子容器 + 编码过滤器（SPI 发现）
+   │  │    SpringConfig                 #   父容器：数据源/SqlSessionFactory/事务/线程池
+   │  │    SpringMvcConfig              #   子容器：@EnableWebMvc + 拦截器/校验器/CORS/切面/视图/上传
    │  ├─ interceptor/LoginInterceptor   # 未登录 302 /login
    │  ├─ controller/                    # LoginController / FileController / ErrorController
    │  ├─ service/                       # User / File / Storage / DownloadLog
    │  ├─ mapper/                        # MyBatis 接口（@Mapper）
    │  ├─ entity/ dto/ util/
-   │  ├─ aspect/DownloadLogAspect       # F5：下载成功后写 download_log
-   │  └─ exception/                     # BusinessException + 全局异常处理
+   │  ├─ aspect/                        # DownloadLogAspect（F5 下载日志）+ WebLogAspect（@Around 请求日志）
+   │  └─ exception/                     # BusinessException + 双全局异常出口（视图 / JSON）
    ├─ main/resources/
-   │  ├─ spring/applicationContext.xml  # 父容器：数据源 / SqlSessionFactory / 事务 / 线程池
-   │  ├─ spring/spring-mvc.xml          # 子容器：Controller / 静态资源 / 视图 / 上传解析器
-   │  ├─ mapper/*.xml                   # 全部 SQL
-   │  └─ common/app.properties          # 上传目录、白名单、大小、线程池
+   │  ├─ mapper/*.xml                   # 全部 SQL（XML 映射，任务书要求）
+   │  ├─ common/app.properties          # 上传目录、白名单、大小、线程池
+   │  └─ common/db.properties           # 连接口令（gitignored，仓里只有 .example）
    ├─ main/webapp/
-   │  ├─ WEB-INF/web.xml
+   │  ├─ WEB-INF/web.xml                # 薄化：仅 error-page / session-config（Servlet 规范仅有的声明式能力）
    │  ├─ WEB-INF/views/{login,files,error}.jsp
    │  └─ static/{css,js,vendor/gsap.min.js}
    └─ test/java/com/monahub/            # 单元 / 集成测试
@@ -139,7 +142,7 @@ mvn clean package
 
 ### 4.1 拦截器放行清单（评分点）
 
-在 `WebConfig#addInterceptors` 注册，**不使用 XML**：
+在 `SpringMvcConfig#addInterceptors` 注册（全注解配置，无 XML）：
 
 ```java
 registry.addInterceptor(new LoginInterceptor())
@@ -355,7 +358,7 @@ cmp 作业.pdf downloaded.pdf && echo BYTES_OK
 |---|---|
 | 启动报 `ClassNotFoundException: javax.servlet...` | 用了 Tomcat 10+；必须 Tomcat 9（jakarta 不兼容） |
 | 端口 18080 被占 | `-Dcargo.servlet.port=8081` |
-| 上传中文名变 `???` | 确认 `CharacterEncodingFilter(forceEncoding=true)` 与 multipart `defaultEncoding=UTF-8` 都在 |
+| 上传中文名变 `???` | 确认 `CharacterEncodingFilter(forceRequestEncoding=true)`（响应不强制，见任务 3.1）与 multipart `defaultEncoding=UTF-8` 都在 |
 | `Access denied for user` | `db.properties` 口令未填或为空（该文件故意不入库） |
 | 登录后样式全丢 | 拦截器放行清单漏了 `/static/**` |
 | 上传 .exe 成功 | 白名单被改动或前端校验替代了服务端校验 —— 服务端必须兜底 |

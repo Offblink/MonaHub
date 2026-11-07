@@ -44,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * create 落盘的磁盘文件由 {@link #cleanupDisk()} 按 filePath 逐个清理。</p>
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(locations = "classpath:spring/applicationContext.xml")
+@ContextConfiguration(classes = com.monahub.config.SpringConfig.class)
 @Transactional
 class ApiControllerTest {
 

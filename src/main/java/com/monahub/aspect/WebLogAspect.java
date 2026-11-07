@@ -13,8 +13,8 @@ import java.util.Arrays;
  * AOP 请求日志切面（实验二任务 6.4）：记录 Controller 层入参、耗时与异常。
  *
  * <p>必须与 Controller 同容器（SpringMVC 子容器）才生效——AOP 代理是容器内的，
- * 所以它由 {@link com.monahub.config.WebConfig} 以 @Bean 注册，而不是被
- * applicationContext.xml 扫进父容器（父容器里没有 Controller 可切）。</p>
+ * 所以它由 {@link com.monahub.config.SpringMvcConfig} 以 @Bean 注册在子容器，
+ * 而不是让父容器 {@code SpringConfig} 的 component-scan 扫到（父容器里没有 Controller 可切）。</p>
  */
 @Aspect
 public class WebLogAspect {
