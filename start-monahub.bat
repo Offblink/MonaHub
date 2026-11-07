@@ -3,7 +3,7 @@ chcp 65001 >nul
 cd /d "%~dp0"
 
 echo [1/3] 打包（跳过测试）...
-call mvn -B -DskipTests package
+call mvn -B -DskipTests clean package
 if errorlevel 1 (
     echo 打包失败，看上面的报错。
     pause

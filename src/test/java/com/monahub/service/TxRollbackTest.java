@@ -1,5 +1,6 @@
 package com.monahub.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.monahub.entity.FileInfo;
 import com.monahub.entity.SysUser;
 import com.monahub.mapper.FileInfoMapper;
@@ -57,13 +58,13 @@ class TxRollbackTest {
         }));
 
         assertNotNull(meta.getId());
-        assertNull(fileInfoMapper.selectByIdAndUploader(meta.getId(), zhangsan.getId()),
+        assertNull(ownFile(meta.getId(), zhangsan.getId()),
                 "异常抛出后行必须消失——回滚生效");
 
         // 对照组：同一事务内不抛异常 → 正常提交、查得到；随后清理
         FileInfo committed = newMeta(zhangsan.getId());
         template.executeWithoutResult(status -> fileInfoMapper.insert(committed));
-        assertNotNull(fileInfoMapper.selectByIdAndUploader(committed.getId(), zhangsan.getId()),
+        assertNotNull(ownFile(committed.getId(), zhangsan.getId()),
                 "不抛异常必须提交（对照组，证明上面的消失确实是回滚）");
         fileInfoMapper.softDelete(committed.getId(), zhangsan.getId());
     }
@@ -73,6 +74,14 @@ class TxRollbackTest {
         assertNotNull(transactionManager, "DataSourceTransactionManager 必须装配");
         assertTrue(transactionManager.getClass().getName().contains("DataSource"),
                 "应为数据源事务管理器，实际: " + transactionManager.getClass().getName());
+    }
+
+    /** 归属单行读：与 Service 的 findOwnFile 同语义（id + uploader_id + 未删除）。 */
+    private FileInfo ownFile(Long id, Long uploaderId) {
+        return fileInfoMapper.selectOne(new LambdaQueryWrapper<FileInfo>()
+                .eq(FileInfo::getId, id)
+                .eq(FileInfo::getUploaderId, uploaderId)
+                .eq(FileInfo::getDeleted, 0));
     }
 
     private FileInfo newMeta(Long uploaderId) {

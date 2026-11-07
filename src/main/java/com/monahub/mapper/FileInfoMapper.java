@@ -1,5 +1,6 @@
 package com.monahub.mapper;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.monahub.dto.ExtCount;
 import com.monahub.entity.FileInfo;
@@ -15,27 +16,24 @@ import java.util.List;
  * <p>所有查询都带 uploader_id 与 deleted = 0 条件：列表与下载天然按人隔离，
  * 逻辑删除的记录对用户完全不可见。</p>
  *
- * <p>分页用 MyBatis-Plus 的 {@link IPage} + PaginationInnerInterceptor，
- * 但 SQL 仍然写在 FileInfoMapper.xml 里（不引入 BaseMapper）。</p>
+ * <p>MyBatis-Plus：继承 {@link BaseMapper} —— insert 走 MP（{@code @TableId AUTO} 主键回填），
+ * 归属单行读由 Service 侧用条件构造器 {@code selectOne} 完成；
+ * 分页动态条件、MD5 去重、聚合统计与带归属条件的更新仍写在 FileInfoMapper.xml
+ * （任务书「XML 映射」知识点；分页 SQL 不写 LIMIT，交给 PaginationInnerInterceptor）。
+ * XML 语句 id 不叫 insert/selectPage：与 BaseMapper 注入的方法同名会在启动期撞 Mapped Statements。</p>
  */
 @Mapper
-public interface FileInfoMapper {
-
-    int insert(FileInfo file);
-
-    /** 下载/改名/删除前的归属查询：限定 id + uploader_id，越权返回 null。 */
-    FileInfo selectByIdAndUploader(@Param("id") Long id,
-                                   @Param("uploaderId") Long uploaderId);
+public interface FileInfoMapper extends BaseMapper<FileInfo> {
 
     /** 重复上传检查：同一账号下、未删除记录里内容 MD5 相同的第一条。 */
     FileInfo selectDuplicate(@Param("uploaderId") Long uploaderId,
                              @Param("md5") String md5);
 
     /** 分页列表：按上传人 + 可选分类扩展名集合 + 可选关键字。 */
-    List<FileInfo> selectPage(IPage<FileInfo> page,
-                              @Param("uploaderId") Long uploaderId,
-                              @Param("exts") List<String> exts,
-                              @Param("keyword") String keyword);
+    List<FileInfo> selectPageQuery(IPage<FileInfo> page,
+                                   @Param("uploaderId") Long uploaderId,
+                                   @Param("exts") List<String> exts,
+                                   @Param("keyword") String keyword);
 
     /** 分类计数：一次分组查询，避免按类循环查库。 */
     List<ExtCount> countByExt(@Param("uploaderId") Long uploaderId);

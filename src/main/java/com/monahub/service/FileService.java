@@ -1,5 +1,6 @@
 package com.monahub.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.monahub.dto.ExtCount;
 import com.monahub.dto.FileStats;
@@ -209,6 +210,14 @@ public class FileService {
         }
     }
 
+    /** 归属单行读（BaseMapper 条件构造器）：id + uploader_id + 未删除，任一不满足返回 null。 */
+    private FileInfo findOwnFile(Long id, Long uploaderId) {
+        return fileInfoMapper.selectOne(new LambdaQueryWrapper<FileInfo>()
+                .eq(FileInfo::getId, id)
+                .eq(FileInfo::getUploaderId, uploaderId)
+                .eq(FileInfo::getDeleted, 0));
+    }
+
     /** 单条元信息入库；独立事务，由上传线程调用（走 Service 代理）。 */
     @Transactional(rollbackFor = Exception.class)
     public void saveMeta(FileInfo meta) {
@@ -241,14 +250,14 @@ public class FileService {
         int size = Math.min(MAX_PAGE_SIZE, Math.max(1, pageSize));
         Page<FileInfo> page = new Page<>(current, size);
 
-        List<FileInfo> records = fileInfoMapper.selectPage(page, uploaderId, exts, q);
+        List<FileInfo> records = fileInfoMapper.selectPageQuery(page, uploaderId, exts, q);
         page.setRecords(records);
 
         // 删除/筛选后页码越界：回退到最后一页再查一次，避免用户看到空白页
         if (records.isEmpty() && current > 1 && page.getTotal() > 0
                 && page.getPages() < current) {
             page.setCurrent(page.getPages());
-            page.setRecords(fileInfoMapper.selectPage(page, uploaderId, exts, q));
+            page.setRecords(fileInfoMapper.selectPageQuery(page, uploaderId, exts, q));
         }
         return page;
     }
@@ -295,7 +304,7 @@ public class FileService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void rename(Long id, Long uploaderId, String newName) {
-        FileInfo file = fileInfoMapper.selectByIdAndUploader(id, uploaderId);
+        FileInfo file = findOwnFile(id, uploaderId);
         if (file == null) {
             throw new BusinessException(404, "文件不存在或无权操作");
         }
@@ -343,7 +352,7 @@ public class FileService {
         }
         List<Long> unique = ids.stream().distinct().toList();
         for (Long id : unique) {
-            if (id == null || fileInfoMapper.selectByIdAndUploader(id, uploaderId) == null) {
+            if (id == null || findOwnFile(id, uploaderId) == null) {
                 throw new BusinessException(404, "文件不存在或无权操作");
             }
         }
@@ -356,7 +365,7 @@ public class FileService {
 
     /** 单条查询（API）：只按归属取，不校验冻结与磁盘（那是下载前的事）。 */
     public FileInfo get(Long id, Long uploaderId) {
-        FileInfo file = fileInfoMapper.selectByIdAndUploader(id, uploaderId);
+        FileInfo file = findOwnFile(id, uploaderId);
         if (file == null) {
             throw new BusinessException(404, "文件不存在或无权访问");
         }
@@ -443,7 +452,7 @@ public class FileService {
      * 路径永远从数据库取，绝不接收客户端传入的文件名或路径。
      */
     public FileInfo openForDownload(Long id, Long uploaderId) {
-        FileInfo file = fileInfoMapper.selectByIdAndUploader(id, uploaderId);
+        FileInfo file = findOwnFile(id, uploaderId);
         if (file == null) {
             throw new BusinessException(404, "文件不存在或无权访问");
         }

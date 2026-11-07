@@ -22,8 +22,8 @@ GSAP 3.12.7 已 vendored 到 `static/vendor/`，**运行期不依赖任何 CDN**
 |---|---|---|
 | JDK | OpenJDK | 17 |
 | 框架 | Spring（IoC / MVC / JDBC / TX / AOP） | 5.3.31 |
-| 持久层 | MyBatis + XML 映射 | 3.5.15 / mybatis-spring 2.0.7 |
-| 分页 | MyBatis-Plus PaginationInnerInterceptor（仅插件，不用 BaseMapper） | 3.5.5 / jsqlparser 4.6 |
+| 持久层 | MyBatis + XML 映射（复杂 SQL），单表 insert / 单行读走 MyBatis-Plus BaseMapper | 3.5.15 / mybatis-spring 2.0.7 |
+| 分页 | MyBatis-Plus PaginationInnerInterceptor（XML 分页 SQL 自动加 LIMIT 与 count） | 3.5.5 / jsqlparser 4.6 |
 | 口令 | Spring Security Crypto · BCryptPasswordEncoder | 5.7.11 |
 | 参数校验 | Hibernate Validator（JSR-303，`@Valid` + 注解） | 6.2.5.Final（javax 栈；EL 用 tomcat-embed-el provided） |
 | 连接池 | HikariCP | 4.0.3 |

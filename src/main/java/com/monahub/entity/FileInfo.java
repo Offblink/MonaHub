@@ -1,5 +1,7 @@
 package com.monahub.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.monahub.util.FileCategory;
 import com.monahub.util.FileNames;
 
@@ -20,13 +22,16 @@ public class FileInfo {
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
+    @TableId(type = IdType.AUTO)
     private Long id;
     private String originName;
     private String storeName;
     private String filePath;
     private String ext;
+
     /** 内容 MD5，用于"同一账号重复上传同一文件"的去重。 */
     private String md5;
+
     private Long fileSize;
     private String contentType;
     private Long uploaderId;

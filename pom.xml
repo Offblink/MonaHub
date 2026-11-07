@@ -19,7 +19,8 @@
         <spring.version>5.3.31</spring.version>
         <mybatis.version>3.5.15</mybatis.version>
         <mybatis.spring.version>2.0.7</mybatis.spring.version>
-        <!-- 仅使用 MyBatis-Plus 的分页插件；SQL 仍全部写在 mapper XML -->
+
+        <!-- MyBatis-Plus：BaseMapper 管单表 insert / 单行读，分页插件管 LIMIT；复杂 SQL 仍写在 mapper XML -->
         <mybatis.plus.version>3.5.5</mybatis.plus.version>
         <jsqlparser.version>4.6</jsqlparser.version>
         <security.crypto.version>5.7.11</security.crypto.version>
@@ -94,9 +95,9 @@
             <version>${mybatis.spring.version}</version>
         </dependency>
 
-        <!-- ================= MyBatis-Plus：只要分页插件 ================= -->
-        <!-- 不引入 BaseMapper / ActiveRecord：SQL 仍写在 XML，
-             仅用 PaginationInnerInterceptor 处理 LIMIT 与 count 查询 -->
+        <!-- ================= MyBatis-Plus：BaseMapper + 分页插件 ================= -->
+        <!-- insert / 条件构造器单行读走 BaseMapper；分页 SQL 仍在 XML，
+             PaginationInnerInterceptor 负责追加 LIMIT 与 count 查询 -->
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-extension</artifactId>

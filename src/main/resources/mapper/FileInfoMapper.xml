@@ -24,25 +24,10 @@
         content_type, uploader_id, create_time, status, deleted, download_count
     </sql>
 
-    <!-- 元信息入库；useGeneratedKeys 回填自增主键 -->
-    <insert id="insert" parameterType="com.monahub.entity.FileInfo"
-            useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO file_info
-            (origin_name, store_name, file_path, ext, md5, file_size,
-             content_type, uploader_id, create_time, status, deleted, download_count)
-        VALUES
-            (#{originName}, #{storeName}, #{filePath}, #{ext}, #{md5}, #{fileSize},
-             #{contentType}, #{uploaderId}, #{createTime}, #{status}, 0, #{downloadCount})
-    </insert>
-
-    <!-- 归属查询：id + uploader_id + 未删除，任一不满足都返回 null -->
-    <select id="selectByIdAndUploader" resultMap="fileMap">
-        SELECT <include refid="columns"/>
-        FROM file_info
-        WHERE id = #{id}
-          AND uploader_id = #{uploaderId}
-          AND deleted = 0
-    </select>
+    <!--
+      元信息 insert 走 MyBatis-Plus BaseMapper；归属单行读（id + uploader_id + 未删除）
+      走 Service 侧条件构造器 selectOne —— 见 FileInfoMapper javadoc。
+    -->
 
     <!--
       重复上传检查：同一账号、未删除记录里 MD5 相同即视为重复。
@@ -63,7 +48,7 @@
       自动追加 LIMIT/OFFSET，并按同一条语句生成 count 查询。
       条件全部走 #{} 预编译参数。
     -->
-    <select id="selectPage" resultMap="fileMap">
+    <select id="selectPageQuery" resultMap="fileMap">
         SELECT <include refid="columns"/>
         FROM file_info
         WHERE uploader_id = #{uploaderId}

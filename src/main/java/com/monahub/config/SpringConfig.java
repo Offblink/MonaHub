@@ -1,5 +1,6 @@
 package com.monahub.config;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import com.zaxxer.hikari.HikariDataSource;
@@ -33,7 +34,7 @@ import java.util.concurrent.ThreadPoolExecutor;
         encoding = "UTF-8")
 @ComponentScan(basePackages = {"com.monahub.service", "com.monahub.aspect"})
 @EnableAspectJAutoProxy
-@EnableTransactionManagement
+@EnableTransactionManagement // 声明式事务
 @MapperScan("com.monahub.mapper")
 public class SpringConfig {
 
@@ -55,8 +56,8 @@ public class SpringConfig {
     }
 
     /**
-     * MyBatis-Plus 分页拦截器（3.5.5）：只用分页能力——给 XML 里的 select
-     * 追加 LIMIT 与 count 查询，不引 BaseMapper、不改 XML 的 SQL 写法。
+     * MyBatis-Plus 分页拦截器（3.5.5）：给 XML 里的 selectPageQuery
+     * 追加 LIMIT 与 count 查询，不改 XML 的 SQL 写法。
      * maxLimit=100 防 {@code ?size=100000} 一次拖库。
      */
     @Bean
@@ -75,6 +76,9 @@ public class SpringConfig {
             throws Exception {
         SqlSessionFactoryBean factory = new SqlSessionFactoryBean();
         factory.setDataSource(dataSource);
+        // MP 的 BaseMapper 语句注入只发生在 MybatisConfiguration 的 MapperRegistry 链路里，
+        // 默认 plain Configuration 不会注入 → 运行期 Invalid bound statement
+        factory.setConfiguration(new MybatisConfiguration());
         factory.setMapperLocations(new PathMatchingResourcePatternResolver()
                 .getResources("classpath:mapper/*.xml"));
         factory.setTypeAliasesPackage("com.monahub.entity");
