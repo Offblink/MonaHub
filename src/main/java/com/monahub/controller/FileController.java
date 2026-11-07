@@ -25,6 +25,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import java.awt.Desktop;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLEncoder;
@@ -165,7 +166,6 @@ public class FileController {
      */
     @GetMapping("/{id}/download")
     public void download(@PathVariable("id") Long id,
-                         @RequestParam(value = "inline", defaultValue = "false") boolean inline,
                          HttpServletRequest request,
                          HttpServletResponse response,
                          HttpSession session) throws IOException {
@@ -185,7 +185,7 @@ public class FileController {
         // RFC 5987：filename* 用 UTF-8 百分号编码，中文名在各浏览器都不乱码；
         // filename 保留 ASCII 退化名，兼容老客户端
         response.setHeader("Content-Disposition",
-                (inline ? "inline" : "attachment") + "; filename=\"" + fallbackName + "\"; filename*=UTF-8''" + encodedName);
+                "attachment; filename=\"" + fallbackName + "\"; filename*=UTF-8''" + encodedName);
         response.setHeader("X-Content-Type-Options", "nosniff");
 
         try (InputStream in = Files.newInputStream(path)) {
@@ -199,6 +199,25 @@ public class FileController {
         } catch (Exception e) {
             log.warn("下载计数/日志写入失败 fileId={}", file.getId(), e);
         }
+    }
+
+    /**
+     * 本地打开：单机部署（客户端=服务端），复用下载的归属/冻结校验，
+     * 交给系统默认程序（Word / 看图器 / PDF 阅读器）直接打开磁盘文件。
+     */
+    @GetMapping("/{id}/open")
+    public void openLocal(@PathVariable("id") Long id,
+                          HttpServletResponse response,
+                          HttpSession session) throws IOException {
+        SysUser user = currentUser(session);
+        FileInfo file = fileService.openForDownload(id, user.getId());
+        Path path = storageService.resolve(file.getFilePath());
+        if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+            response.sendError(HttpServletResponse.SC_NOT_IMPLEMENTED, "当前环境不支持本地打开");
+            return;
+        }
+        Desktop.getDesktop().open(path.toFile());
+        response.setStatus(HttpServletResponse.SC_NO_CONTENT);
     }
 
     // ============================================================

@@ -570,7 +570,7 @@
         });
     }
 
-    /* ---------------- 点击文件卡片打开文件（本机服务 inline 输出，新标签页） ---------------- */
+    /* ---------------- 点击文件卡片 → 服务端用系统默认程序本地打开 ---------------- */
     document.addEventListener('click', function (event) {
         if (event.button !== 0 || event.defaultPrevented) {
             return;
@@ -584,7 +584,10 @@
                 || String(window.getSelection() || '').length > 0) {
             return;
         }
-        window.open(row.getAttribute('data-open-url'), '_blank');
+        // 单机部署：服务端在本机 Desktop.open 磁盘文件，fetch 触发即返回，不开新标签
+        window.fetch(row.getAttribute('data-open-url')).catch(function () {
+            console.warn('本地打开失败');
+        });
     });
 
     /* ---------------- 滚动位置统一保持（分类 / 分页 / 操作 / 上传刷新等整页跳转） ----------------
