@@ -587,10 +587,31 @@
         window.open(row.getAttribute('data-open-url'), '_blank');
     });
 
-    /* ---------------- 冻结/重命名/删除是整页刷新：记住并恢复滚动位置 ---------------- */
+    /* ---------------- 滚动位置统一保持（分类 / 分页 / 操作 / 上传刷新等整页跳转） ----------------
+       离开列表页前记住位置：pagehide 覆盖一切整页跳转，模态确认处另存一次作双保险；
+       回到列表页时恢复；品牌链接是"回顶部"，点击时先清掉。 */
+    window.addEventListener('pagehide', function () {
+        if (window.location.pathname.endsWith('/files')) {
+            try {
+                sessionStorage.setItem('monahub:restoreScroll', String(window.scrollY || 0));
+            } catch (ignore) {
+            }
+        }
+    });
+
+    var brandMini = document.querySelector('.brand-mini');
+    if (brandMini) {
+        brandMini.addEventListener('click', function () {
+            try {
+                sessionStorage.removeItem('monahub:restoreScroll');
+            } catch (ignore) {
+            }
+        });
+    }
+
     try {
         var savedScroll = sessionStorage.getItem('monahub:restoreScroll');
-        if (savedScroll !== null) {
+        if (savedScroll !== null && window.location.pathname.endsWith('/files')) {
             sessionStorage.removeItem('monahub:restoreScroll');
             window.scrollTo(0, parseInt(savedScroll, 10) || 0);
         }
@@ -650,7 +671,7 @@
                 var action = form.dataset.action || '确认';
                 title.textContent = action + '该文件？';
                 if (mode === 'delete') {
-                    text.textContent = '删除后列表与统计中不再显示（逻辑删除，磁盘文件保留）。';
+                    text.textContent = '删除后列表与统计中不再显示。';
                     setConfirmStyle('danger');
                 } else if (action === '解冻') {
                     text.textContent = '解冻后可以继续下载这个文件。';
