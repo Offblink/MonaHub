@@ -1,0 +1,367 @@
+{
+  "info": {
+    "_postman_id": "monahub-api-e2",
+    "name": "MonaHub 资料提交台 · 实验二接口用例集",
+    "description": "实验二任务 7.1 系统化测试用例集，可直接导入 Apifox（导入 → Postman Collection）。\n\n前置：先执行「00 登录」拿到会话 Cookie（Apifox 自动管理 Cookie）；基础地址默认 http://127.0.0.1:18080/monahub，端口变了改 {{baseUrl}} 即可。\n\n覆盖：正常功能 / 参数校验（JSR-303 + 服务端）/ 异常场景（401、404、409、400）/ 分页边界（第 0 页、超尾页、size=0、size 超上限）。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:18080/monahub" }
+  ],
+  "item": [
+    {
+      "name": "00 认证",
+      "item": [
+        {
+          "name": "登录（POST /login，表单）",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "username", "value": "zhangsan" },
+                { "key": "password", "value": "123456" }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] },
+            "description": "预期 302 → /files，并种下 JSESSIONID。后续用例自动携带 Cookie。"
+          }
+        },
+        {
+          "name": "登出（POST /logout）",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "raw", "raw": "" },
+            "url": { "raw": "{{baseUrl}}/logout", "host": ["{{baseUrl}}"], "path": ["logout"] },
+            "description": "预期 302 → /login。跑完本组用例后执行，恢复未登录态。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 正常功能",
+      "item": [
+        {
+          "name": "GET 列表（分页+筛选）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/files?page=1&size=5&category=all&q=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "files"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "size", "value": "5" },
+                { "key": "category", "value": "all" },
+                { "key": "q", "value": "" }
+              ]
+            },
+            "description": "预期 200，body：{code:200, data:{records:[...], total, current, size}}。\n断言：code==200；records 为数组；createTime 是 ISO-8601 字符串（不是数组）。\n筛选示例：category=doc / q=关键字。"
+          }
+        },
+        {
+          "name": "GET 单条（按 id）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/files/123",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "files", "123"]
+            },
+            "description": "把 123 换成列表里实际存在的 id。预期 200 + data.id==123；不存在的 id 见「02 异常场景」。"
+          }
+        },
+        {
+          "name": "POST 新增（JSON + Base64）",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"apifox上传.pdf\",\n  \"content\": \"aGVsbG8gbW9uYWh1YiBhcGlmb3g=\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "content 为文件内容的 Base64。预期 200，data 为新建记录（含 id、filePath）。\n断言：code==200；data.id>0；随后 GET 列表能查到同名记录。\n注意：同账号+同内容会 409（见异常场景），重复跑可先改 content 或改 name+content。"
+          }
+        },
+        {
+          "name": "PUT 重命名",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 123,\n  \"newName\": \"apifox改名\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "id 换成实际存在的记录。只给主名会自动补原扩展名。预期 200，data:null。\n改名后 GET 单条断言 originName==\"apifox改名.pdf\"。"
+          }
+        },
+        {
+          "name": "DELETE 单条",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/files/123",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "files", "123"]
+            },
+            "description": "id 换成 POST 新增拿到的 id。预期 200，data:null；再 GET 单条应 404（逻辑删除）。"
+          }
+        },
+        {
+          "name": "DELETE 批量（body 为 id 数组）",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "[124, 125]", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "换成两个实际存在的 id。预期 200，data=2（删除条数）。\n语义：先全量校验归属，任一不存在则整批不动（404）。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 异常场景",
+      "item": [
+        {
+          "name": "未登录访问 API → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "先执行「00 认证 → 登出」再跑本条（或用无 Cookie 的环境）。预期 401，body {\"code\":401,\"message\":\"未登录\"}，不是 302。"
+          }
+        },
+        {
+          "name": "空文件名 → 400（JSR-303）",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"  \",\n  \"content\": \"aGVsbG8=\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "预期 400，message 含「文件名不能为空」（@NotBlank 拦截，全局异常出口统一翻译）。"
+          }
+        },
+        {
+          "name": "缺 id 的 PUT → 400（@NotNull）",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newName\": \"没有id.pdf\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "预期 400，message 含「文件 id 不能为空」。"
+          }
+        },
+        {
+          "name": "非法 Base64 → 400",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"x.pdf\",\n  \"content\": \"!!!not-base64!!!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "预期 400，message「content 不是合法的 Base64 编码」。"
+          }
+        },
+        {
+          "name": "白名单外扩展名 → 400",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"virus.exe\",\n  \"content\": \"aGVsbG8=\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "预期 400，message 列出允许的扩展名（服务端白名单，不依赖前端）。"
+          }
+        },
+        {
+          "name": "重复内容 → 409（MD5 去重）",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"dup-again.pdf\",\n  \"content\": \"ZHVwLWNvbnRlbnQ=\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "先跑一次「POST 新增」把 content 换成同一段 Base64 再跑本条：同账号相同内容 → 预期 409，message 含「重复」。"
+          }
+        },
+        {
+          "name": "不存在的 id 单查 → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/files/999999999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "files", "999999999"]
+            },
+            "description": "预期 404，code==404，message「文件不存在或无权访问」。"
+          }
+        },
+        {
+          "name": "改扩展名 → 400",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 123,\n  \"newName\": \"伪装.exe\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "id 换成实际存在的记录。预期 400「只能修改文件名，不能修改扩展名」（防「名字是 .pdf 内容是 exe」的欺骗面）。"
+          }
+        },
+        {
+          "name": "批量删除含他人 id → 404 且整批不动",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "[123, 999999999]",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "预期 404；再 GET 123 应仍为 200——先全量校验再删，不允许删一半。"
+          }
+        },
+        {
+          "name": "批量删除空数组 → 400",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "[]", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "预期 400「未指定要删除的文件」。"
+          }
+        },
+        {
+          "name": "请求体不是 JSON → 400",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "not-json-at-all", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/files", "host": ["{{baseUrl}}"], "path": ["api", "files"] },
+            "description": "预期 400「请求体格式错误」（HttpMessageNotReadableException 统一翻译）。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 分页边界",
+      "item": [
+        {
+          "name": "第 0 页 → 夹紧为 1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/files?page=0&size=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "files"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "5" }
+              ]
+            },
+            "description": "预期 200 且 data.current>=1——页码夹紧而不是报错。"
+          }
+        },
+        {
+          "name": "size=0 → 夹紧为 1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/files?page=1&size=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "files"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "size", "value": "0" }
+              ]
+            },
+            "description": "预期 200 且 data.size>=1。"
+          }
+        },
+        {
+          "name": "size 超上限 → 夹紧为 50",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/files?page=1&size=99999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "files"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "size", "value": "99999" }
+              ]
+            },
+            "description": "预期 200 且 data.size==50——防一次查全表。"
+          }
+        },
+        {
+          "name": "超尾页 → 回退末页",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/files?page=99999&size=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "files"],
+              "query": [
+                { "key": "page", "value": "99999" },
+                { "key": "size", "value": "5" }
+              ]
+            },
+            "description": "预期 200，records 非空且 data.current==总页数——越界回退末页，不给空白页。"
+          }
+        },
+        {
+          "name": "负数 page → 夹紧为 1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/files?page=-3&size=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "files"],
+              "query": [
+                { "key": "page", "value": "-3" },
+                { "key": "size", "value": "5" }
+              ]
+            },
+            "description": "预期 200 且 data.current>=1。"
+          }
+        }
+      ]
+    }
+  ]
+}

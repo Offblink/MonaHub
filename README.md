@@ -25,6 +25,7 @@ GSAP 3.12.7 已 vendored 到 `static/vendor/`，**运行期不依赖任何 CDN**
 | 持久层 | MyBatis + XML 映射 | 3.5.15 / mybatis-spring 2.0.7 |
 | 分页 | MyBatis-Plus PaginationInnerInterceptor（仅插件，不用 BaseMapper） | 3.5.5 / jsqlparser 4.6 |
 | 口令 | Spring Security Crypto · BCryptPasswordEncoder | 5.7.11 |
+| 参数校验 | Hibernate Validator（JSR-303，`@Valid` + 注解） | 6.2.5.Final（javax 栈；EL 用 tomcat-embed-el provided） |
 | 连接池 | HikariCP | 4.0.3 |
 | 数据库 | MySQL（utf8mb4） | 5.7+（本机 9.3 实测） |
 | 视图 | JSP + JSTL | servlet-api 4.0.1 / jstl 1.2 |
@@ -202,6 +203,24 @@ fileId → WHERE id=? AND uploader_id=? → 冻结判断 → 磁盘存在判断 
 | GET | `/files/{id}/download` | 下载（仅本人、非冻结、未删除） |
 | GET | `/error` | 友好错误页（容器 404/500 也转发到这里） |
 
+### 5.1 JSON API（`/api/files`，RESTful 五件事）
+
+统一返回 `{"code":200,"message":"success","data":…}`，`code` 与 HTTP 状态码一致；
+**未登录回 401 JSON**（页面流程仍是 302）；会话与 JSP 流程共用。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/files` | 分页 + 多条件：`page`、`size`（≤50）、`category`、`q`；越界回退末页 |
+| GET | `/api/files/{id}` | 单条查询（仅本人；不存在/越权 404） |
+| POST | `/api/files` | 新增：JSON `{"name":"…","content":"<Base64>"}`；与表单上传同一条校验/MD5 去重/补偿链路（重复 409） |
+| PUT | `/api/files` | 重命名：JSON `{"id":…,"newName":"…"}`；扩展名不可改（400） |
+| DELETE | `/api/files/{id}` | 逻辑删除（仅本人） |
+| DELETE | `/api/files` | 批量删除：JSON id 数组；**先全量校验归属**，任一不存在整批不动（404），空数组 400 |
+
+校验：JSR-303（`@Valid` + `@NotBlank/@Size/@NotNull`，hibernate-validator 6.2.5.Final）在
+`RestGlobalExceptionHandler` 统一翻译成 400 Result；服务端手写校验（扩展名白名单、大小上限）仍在 Service 层。
+接口测试用例集：`docs/apifox/monahub-api.postman_collection.json`（Apifox 导入即跑，24 条：正常/异常/分页边界）。
+
 ---
 
 ## 6. 数据库设计
@@ -240,9 +259,14 @@ fileId → WHERE id=? AND uploader_id=? → 冻结判断 → 磁盘存在判断 
 mvn test
 ```
 
-覆盖：BCrypt 哈希与校验、文件名纯函数与分类、存储 UUID/分目录/路径穿越、拦截器重定向、
-登录成功/失败、列表归属隔离、分类过滤、分页（总数/越界回退/每页上限）、
-重命名（补扩展名/禁改扩展名/越权）、逻辑删除、冻结与越权下载。
+**40 个用例**：BCrypt 哈希与校验、文件名纯函数与分类、存储 UUID/分目录/路径穿越、拦截器重定向
+（含 `/api/**` 401 JSON）、登录成功/失败、列表归属隔离、分类过滤、分页（总数/越界回退/每页上限）、
+重命名（补扩展名/禁改扩展名/越权）、逻辑删除、冻结与越权下载、
+**API 五件事**（MockMvc：401/200/400/404/409、JSR-303、分页夹紧、批删原子性）、
+**事务回滚实证**（`TxRollbackTest`：INSERT 后抛异常行消失，对照组正常提交）。
+
+接口测试交付 **Apifox 用例集**：`docs/apifox/monahub-api.postman_collection.json`
+（00 认证 / 01 正常功能 / 02 异常场景 / 03 分页边界，共 24 条，导入 Apifox 即跑；curl 仅作开发期自测）。
 
 ### 8.1 curl 端到端（四条验收的脚本化复验）
 
