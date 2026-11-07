@@ -114,6 +114,8 @@ mvn -Prun package cargo:run
 mvn clean package
 ```
 
+**方式 C（免 IDEA）**：双击根目录 `start-monahub.bat` —— 自动打包 → 新窗口启动 Tomcat → 就绪后自动打开浏览器；停止 = 关闭该窗口。
+
 访问：**http://127.0.0.1:18080/monahub/**
 
 > 端口被占用时可覆盖：`mvn -Prun package cargo:run -Dcargo.servlet.port=8081`
