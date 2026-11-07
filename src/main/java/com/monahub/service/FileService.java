@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -152,7 +153,12 @@ public class FileService {
 
             // 重复上传回退：先算内容 MD5，再查同一账号下是否已有相同内容。
             // 命中就直接返回，不落盘也不入库 —— 不会产生第二份文件和第二条记录。
-            String md5 = DigestUtils.md5DigestAsHex(file.getInputStream());
+            // 流必须关：不关的话 Windows 下自己进程的句柄就锁死了 tmp，
+            // 后面 transferTo 的「重命名/删源」必失败（os error 32），>10KB 文件全军覆没
+            String md5;
+            try (InputStream in = file.getInputStream()) {
+                md5 = DigestUtils.md5DigestAsHex(in);
+            }
             FileInfo duplicate = fileInfoMapper.selectDuplicate(user.getId(), md5);
             if (duplicate != null) {
                 return UploadResult.duplicate(originName, duplicate.getOriginName());
