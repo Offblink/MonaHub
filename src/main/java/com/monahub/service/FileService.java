@@ -21,9 +21,11 @@ import org.springframework.util.DigestUtils;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -208,7 +210,7 @@ public class FileService {
     }
 
     /** 单条元信息入库；独立事务，由上传线程调用（走 Service 代理）。 */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void saveMeta(FileInfo meta) {
         fileInfoMapper.insert(meta);
     }
@@ -291,7 +293,7 @@ public class FileService {
      * 允许只输入主名（自动补原扩展名），但不允许改扩展名 —— 否则会出现
      * "名字是 .pdf、内容其实是 exe" 的欺骗面。
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void rename(Long id, Long uploaderId, String newName) {
         FileInfo file = fileInfoMapper.selectByIdAndUploader(id, uploaderId);
         if (file == null) {
@@ -323,11 +325,104 @@ public class FileService {
      * 逻辑删除：deleted = 1，记录与磁盘文件都保留（管理员可清理或恢复）。
      * 删除后列表、统计、下载、改名全部不可见。
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void delete(Long id, Long uploaderId) {
         if (fileInfoMapper.softDelete(id, uploaderId) == 0) {
             throw new BusinessException(404, "文件不存在或无权操作");
         }
+    }
+
+    /**
+     * 批量逻辑删除（API）：先全量校验归属，任一不存在则整批不动——
+     * 避免"删了一半"的中间态；事务保证后半程失败时整体回滚。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public int deleteBatch(List<Long> ids, Long uploaderId) {
+        if (ids == null || ids.isEmpty()) {
+            throw new BusinessException(400, "未指定要删除的文件");
+        }
+        List<Long> unique = ids.stream().distinct().toList();
+        for (Long id : unique) {
+            if (id == null || fileInfoMapper.selectByIdAndUploader(id, uploaderId) == null) {
+                throw new BusinessException(404, "文件不存在或无权操作");
+            }
+        }
+        int deleted = 0;
+        for (Long id : unique) {
+            deleted += fileInfoMapper.softDelete(id, uploaderId);
+        }
+        return deleted;
+    }
+
+    /** 单条查询（API）：只按归属取，不校验冻结与磁盘（那是下载前的事）。 */
+    public FileInfo get(Long id, Long uploaderId) {
+        FileInfo file = fileInfoMapper.selectByIdAndUploader(id, uploaderId);
+        if (file == null) {
+            throw new BusinessException(404, "文件不存在或无权访问");
+        }
+        return file;
+    }
+
+    /**
+     * JSON 上传（API）：与表单上传同一条链路——服务端校验 → MD5 去重 →
+     * 落盘 → 入库，入库失败删掉刚写的文件（补偿），保证
+     * "库里有记录 ⇔ 磁盘有文件"。
+     *
+     * @param base64Content 文件内容的 Base64 编码；解码前先按 4/3 膨胀率
+     *                       预估上限，避免超大 body 撑爆内存
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public FileInfo create(SysUser user, String rawName, String base64Content) {
+        long maxBase64Chars = (maxSize + 2) / 3 * 4 + 4;
+        if (base64Content.length() > maxBase64Chars) {
+            throw new BusinessException(400,
+                    "文件超过 " + FileNames.sizeText(maxSize) + " 上限");
+        }
+        byte[] content;
+        try {
+            content = Base64.getDecoder().decode(base64Content);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(400, "content 不是合法的 Base64 编码");
+        }
+
+        String originName = FileNames.sanitize(rawName);
+        String ext = FileNames.extOf(originName);
+        validate(originName, ext, content.length);
+
+        String md5 = org.springframework.util.DigestUtils.md5DigestAsHex(content);
+        FileInfo duplicate = fileInfoMapper.selectDuplicate(user.getId(), md5);
+        if (duplicate != null) {
+            throw new BusinessException(409, "与已有文件内容重复：" + duplicate.getOriginName());
+        }
+
+        StoredFile stored;
+        try {
+            stored = storageService.saveBytes(content, user.getUsername(), originName);
+        } catch (IOException e) {
+            log.error("API 创建落盘失败: {}", originName, e);
+            throw new BusinessException(500, "服务器写入失败，请重试");
+        }
+
+        FileInfo meta = new FileInfo();
+        meta.setOriginName(stored.getOriginName());
+        meta.setStoreName(stored.getStoreName());
+        meta.setFilePath(stored.getRelativePath());
+        meta.setExt(stored.getExt());
+        meta.setMd5(md5);
+        meta.setFileSize(stored.getSize());
+        meta.setContentType(stored.getContentType());
+        meta.setUploaderId(user.getId());
+        meta.setCreateTime(LocalDateTime.now());
+        meta.setStatus(1);
+        meta.setDownloadCount(0);
+
+        try {
+            fileInfoMapper.insert(meta);
+        } catch (RuntimeException e) {
+            storageService.deleteQuietly(stored.getRelativePath());
+            throw e;
+        }
+        return meta;
     }
 
     // ============================================================
@@ -335,7 +430,7 @@ public class FileService {
     // ============================================================
 
     /** 冻结 = status 0，解冻 = status 1；WHERE 带 uploader_id，改不到别人的记录。 */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void freeze(Long id, Long uploaderId, boolean frozen) {
         int updated = fileInfoMapper.updateStatus(id, uploaderId, frozen ? 0 : 1);
         if (updated == 0) {
@@ -365,7 +460,7 @@ public class FileService {
      * 下载成功后的计数。参数里的 downloaderId/ip 不参与更新，
      * 只服务于 {@link com.monahub.aspect.DownloadLogAspect} 的切点绑定（F5）。
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void afterDownload(Long fileId, Long downloaderId, String ip) {
         fileInfoMapper.incrementDownloadCount(fileId);
     }

@@ -1,10 +1,16 @@
 package com.monahub.config;
 
+import com.monahub.aspect.WebLogAspect;
 import com.monahub.interceptor.LoginInterceptor;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.validation.Validator;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
 
 /**
  * SpringMVC 配置。
@@ -22,6 +28,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  */
 @Configuration
 @EnableWebMvc
+@EnableAspectJAutoProxy
 public class WebConfig implements WebMvcConfigurer {
 
     @Override
@@ -33,5 +40,49 @@ public class WebConfig implements WebMvcConfigurer {
                         "/static/**",
                         "/error",
                         "/favicon.ico");
+    }
+
+    /**
+     * 纯 Spring（非 Boot）下 @EnableWebMvc 不保证 @Valid 真的跑——
+     * 注解在、校验静默失效（JFT-E2 实测坑），显式提供 JSR-303 校验器。
+     */
+    @Override
+    public Validator getValidator() {
+        return new LocalValidatorFactoryBean();
+    }
+
+    /** 跨域：只给 JSON API 开（JSP 页面同源不需要）。 */
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/api/**")
+                .allowedOriginPatterns("*")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
+    }
+
+    /**
+     * 纯 Spring 的 Jackson 默认把 LocalDateTime 序列化成 [2026,11,3,11,38,30] 数组
+     * （Spring Boot 才会自动关时间戳）——这里显式关掉，API 返回 ISO-8601 字符串。
+     */
+    @Override
+    public void extendMessageConverters(
+            java.util.List<org.springframework.http.converter.HttpMessageConverter<?>> converters) {
+        for (org.springframework.http.converter.HttpMessageConverter<?> converter : converters) {
+            if (converter instanceof org.springframework.http.converter.json.MappingJackson2HttpMessageConverter jackson) {
+                jackson.getObjectMapper()
+                        .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+            }
+        }
+    }
+
+    /**
+     * 请求日志切面必须注册在子容器（与 Controller 同容器，AOP 代理才有效），
+     * 所以走 @Bean 而不是让父容器的 component-scan 扫到它。
+     */
+    @Bean
+    public WebLogAspect webLogAspect() {
+        return new WebLogAspect();
     }
 }

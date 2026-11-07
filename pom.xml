@@ -152,6 +152,22 @@
             <version>${jackson.version}</version>
         </dependency>
 
+        <!-- ================= JSR-303 参数校验（实验二任务 6.1） ================= -->
+        <!-- 必须 6.2.x：7.x 已迁 jakarta.validation，与 Tomcat 9 的 javax 栈不兼容 -->
+        <dependency>
+            <groupId>org.hibernate.validator</groupId>
+            <artifactId>hibernate-validator</artifactId>
+            <version>6.2.5.Final</version>
+        </dependency>
+        <!-- EL 实现：HV6 消息插值要 javax.el，缺了直接 HV000183（JFT-E2 实测）。
+             真实 Tomcat 自带同一份，故 provided：不进 war，测试 classpath 可见 -->
+        <dependency>
+            <groupId>org.apache.tomcat.embed</groupId>
+            <artifactId>tomcat-embed-el</artifactId>
+            <version>9.0.83</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- ================= AOP（下载日志切面） ================= -->
         <dependency>
             <groupId>org.aspectj</groupId>

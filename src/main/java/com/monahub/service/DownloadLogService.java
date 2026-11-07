@@ -20,7 +20,7 @@ public class DownloadLogService {
         this.downloadLogMapper = downloadLogMapper;
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void record(Long fileId, Long downloaderId, String ip) {
         DownloadLog log = new DownloadLog();
         log.setFileId(fileId);

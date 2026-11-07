@@ -38,4 +38,29 @@ class LoginInterceptorTest {
         assertTrue(interceptor.preHandle(request, response, new Object()));
         assertNull(response.getRedirectedUrl());
     }
+
+    @Test
+    void unauthenticatedApiRequestReturns401JsonNotRedirect() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setContextPath("/monahub");
+        request.setRequestURI("/monahub/api/files");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertFalse(interceptor.preHandle(request, response, new Object()));
+        assertNull(response.getRedirectedUrl(), "API 不能 302");
+        assertEquals(401, response.getStatus());
+        assertTrue(response.getContentType().startsWith("application/json"));
+        assertTrue(response.getContentAsString().contains("\"code\":401"));
+    }
+
+    @Test
+    void unauthenticatedApiSingleResourceAlsoReturns401() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setContextPath("/monahub");
+        request.setRequestURI("/monahub/api/files/42");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertFalse(interceptor.preHandle(request, response, new Object()));
+        assertEquals(401, response.getStatus());
+    }
 }

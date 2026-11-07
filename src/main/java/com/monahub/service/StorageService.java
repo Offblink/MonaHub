@@ -78,6 +78,33 @@ public class StorageService {
     }
 
     /**
+     * 落盘（API 用）：字节直写，目录规则与 {@link #save} 完全一致。
+     * contentType 由文件系统探测，探测不到就留空（下载时回退 octet-stream）。
+     */
+    public StoredFile saveBytes(byte[] data, String username, String originName) throws IOException {
+        String ext = FileNames.extOf(originName);
+        String storeName = FileNames.storeName(ext);
+
+        LocalDate today = LocalDate.now();
+        String relativeDir = safeSegment(username) + "/" + today.getYear()
+                + "/" + String.format("%02d", today.getMonthValue());
+
+        Path dir = withinRoot(relativeDir);
+        Files.createDirectories(dir);
+        Path target = withinRoot(relativeDir + "/" + storeName);
+        Files.write(target, data);
+
+        String contentType = null;
+        try {
+            contentType = Files.probeContentType(target);
+        } catch (IOException ignored) {
+            // 探测失败不影响落盘
+        }
+        return new StoredFile(originName, storeName, relativeDir + "/" + storeName,
+                ext, data.length, contentType);
+    }
+
+    /**
      * 相对路径 → 绝对路径，并做 canonical 前缀校验。
      *
      * @throws BusinessException 路径为空或逃逸出上传根目录
