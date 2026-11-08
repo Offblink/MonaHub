@@ -15,6 +15,7 @@ public class Result<T> {
     private Result() {
     }
 
+    // ok方法
     public static <T> Result<T> ok(T data) {
         Result<T> r = new Result<>();
         r.code = 200;

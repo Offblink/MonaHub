@@ -61,10 +61,11 @@ public class FileService {
 
     private final FileInfoMapper fileInfoMapper;
     private final StorageService storageService;
-    private final ThreadPoolTaskExecutor uploadExecutor;
+    private final ThreadPoolTaskExecutor uploadExecutor; //使用线程池，也是spring内置
     private final long maxSize;
     private final Set<String> allowedExt;
 
+    // 构造方法
     public FileService(FileInfoMapper fileInfoMapper,
                        StorageService storageService,
                        @Qualifier("uploadExecutor") ThreadPoolTaskExecutor uploadExecutor,
@@ -75,7 +76,10 @@ public class FileService {
         this.uploadExecutor = uploadExecutor;
         this.maxSize = maxSize;
 
+        // new一个拓展名集合
         Set<String> exts = new TreeSet<>();
+
+        // 把传进来的拓展名按逗号分隔，逐个加入拓展名集合
         for (String item : allowedExt.split(",")) {
             String ext = item.trim().toLowerCase(Locale.ROOT);
             if (!ext.isEmpty()) {
@@ -103,6 +107,8 @@ public class FileService {
         }
 
         List<Callable<UploadResult>> tasks = new ArrayList<>();
+
+        // 首先，从文件列表中得到逐个文件
         for (MultipartFile file : files) {
             if (file == null) {
                 continue;
@@ -112,33 +118,37 @@ public class FileService {
             if (file.getSize() == 0 && originName.isEmpty()) {
                 continue;
             }
-            tasks.add(() -> uploadOne(file, user, originName));
+
+            // 一个文件一条任务（事务）
+            tasks.add(() -> uploadOne(file, user, originName)); // 调用下面的方法
         }
         if (tasks.isEmpty()) {
             results.add(new UploadResult("（未选择文件）", false, "请选择要上传的文件"));
             return results;
         }
 
+        // 用来执行异步任务的Future类
         List<Future<UploadResult>> futures;
         try {
             futures = uploadExecutor.getThreadPoolExecutor()
-                    .invokeAll(tasks, 120, TimeUnit.SECONDS);
+                    .invokeAll(tasks, 120, TimeUnit.SECONDS); // 反射，链式调用
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            Thread.currentThread().interrupt(); // 中断当前线程
             results.add(new UploadResult("（批量上传）", false, "上传被中断，请重试"));
             return results;
         }
 
+        // 获取单个任务（异步）
         for (Future<UploadResult> future : futures) {
             try {
                 results.add(future.get());
-            } catch (CancellationException e) {
+            } catch (CancellationException e) { // 取消异常
                 results.add(new UploadResult("（超时）", false, "处理超时，请分批上传"));
-            } catch (ExecutionException e) {
+            } catch (ExecutionException e) { // 执行时异常
                 Throwable cause = e.getCause() == null ? e : e.getCause();
                 log.error("上传任务未捕获异常", cause);
                 results.add(new UploadResult("（未知）", false, "处理失败，请重试"));
-            } catch (InterruptedException e) {
+            } catch (InterruptedException e) { // 中断异常
                 Thread.currentThread().interrupt();
                 results.add(new UploadResult("（批量上传）", false, "上传被中断，请重试"));
             }
@@ -148,8 +158,9 @@ public class FileService {
 
     private UploadResult uploadOne(MultipartFile file, SysUser user, String originName) {
         try {
+            // 根据文件原始名称获取拓展名
             String ext = FileNames.extOf(originName);
-            validate(originName, ext, file.getSize());
+            validate(originName, ext, file.getSize()); // 校验方法，有任何错误都会抛出异常
 
             // 重复上传回退：先算内容 MD5，再查同一账号下是否已有相同内容。
             // 命中就直接返回，不落盘也不入库 —— 不会产生第二份文件和第二条记录。
@@ -157,15 +168,20 @@ public class FileService {
             // 后面 transferTo 的「重命名/删源」必失败（os error 32），>10KB 文件全军覆没
             String md5;
             try (InputStream in = file.getInputStream()) {
-                md5 = DigestUtils.md5DigestAsHex(in);
+                md5 = DigestUtils.md5DigestAsHex(in); // 计算文件md5（sha256……）
             }
+
+            // 计算是否冗余
             FileInfo duplicate = fileInfoMapper.selectDuplicate(user.getId(), md5);
             if (duplicate != null) {
+                // uploadResult作为dto，定义返回格式（类型）
                 return UploadResult.duplicate(originName, duplicate.getOriginName());
             }
 
+            // 不冗余，落盘
             StoredFile stored = storageService.save(file, user.getUsername(), originName);
 
+            // 文件元属性
             FileInfo meta = new FileInfo();
             meta.setOriginName(stored.getOriginName());
             meta.setStoreName(stored.getStoreName());
@@ -187,7 +203,7 @@ public class FileService {
                 throw e;
             }
             return new UploadResult(originName, true, "上传成功");
-        } catch (BusinessException e) {
+        } catch (BusinessException e) { // 异常从小到大依次捕获，整个世界就是一个巨大的try-catch块
             return new UploadResult(originName, false, e.getMessage());
         } catch (Exception e) {
             log.error("上传失败: {}", originName, e);
@@ -195,7 +211,7 @@ public class FileService {
         }
     }
 
-    /** 服务端校验：不依赖任何前端限制（任务书硬性要求）。 */
+    /** 服务端校验：不依赖任何前端限制（任务书硬性要求） */
     private void validate(String originName, String ext, long size) {
         if (originName == null || originName.isEmpty()) {
             throw new BusinessException(400, "文件名不能为空");
@@ -218,10 +234,10 @@ public class FileService {
 
     /** 归属单行读（BaseMapper 条件构造器）：id + uploader_id + 未删除，任一不满足返回 null。 */
     private FileInfo findOwnFile(Long id, Long uploaderId) {
-        return fileInfoMapper.selectOne(new LambdaQueryWrapper<FileInfo>()
-                .eq(FileInfo::getId, id)
-                .eq(FileInfo::getUploaderId, uploaderId)
-                .eq(FileInfo::getDeleted, 0));
+        return fileInfoMapper.selectOne(new LambdaQueryWrapper<FileInfo>() //只找一个
+                .eq(FileInfo::getId, id)  // id相等
+                .eq(FileInfo::getUploaderId, uploaderId) // 上传者id也一致
+                .eq(FileInfo::getDeleted, 0)); // 未被逻辑删除
     }
 
     /** 单条元信息入库；独立事务，由上传线程调用（走 Service 代理）。 */
@@ -243,6 +259,7 @@ public class FileService {
      * @param pageNo   ＞=1，越界时自动回退到最后一页
      * @param pageSize 1..MAX_PAGE_SIZE
      */
+    // 我的理解是：分页列表作为一个最大的筛选条件，需要综合上传者、过滤类型、搜索关键词、当前页数等等信息
     public Page<FileInfo> list(Long uploaderId, String categoryKey, String keyword,
                                int pageNo, int pageSize) {
         FileCategory category = FileCategory.byKey(categoryKey);

@@ -27,10 +27,13 @@ import java.util.List;
  * <p>与 JSP 页面流程共用同一个 FileService 与会话；未登录由
  * {@link LoginInterceptor} 统一回 401 JSON（页面流程仍是 302）。</p>
  */
+
+// 之所以叫rest，是因为直接返回数据本身（JSON类型），等价于controller+responseBody
 @RestController
-@RequestMapping("/api/files")
+@RequestMapping("/api/files") // 相当于上学期的servlet注解
 public class ApiController {
 
+    // 控制层依赖业务层
     private final FileService fileService;
 
     public ApiController(FileService fileService) {

@@ -20,6 +20,7 @@ public class DownloadLogService {
         this.downloadLogMapper = downloadLogMapper;
     }
 
+    // 生声明式事务
     @Transactional(rollbackFor = Exception.class)
     public void record(Long fileId, Long downloaderId, String ip) {
         DownloadLog log = new DownloadLog();
@@ -27,6 +28,6 @@ public class DownloadLogService {
         log.setDownloaderId(downloaderId);
         log.setDownloadTime(LocalDateTime.now());
         log.setIp(ip);
-        downloadLogMapper.insert(log);
+        downloadLogMapper.insert(log); // 直接继承了mp的baseMapper，并复用其中的crud方法
     }
 }

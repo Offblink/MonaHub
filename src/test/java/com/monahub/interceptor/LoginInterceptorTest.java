@@ -19,8 +19,11 @@ class LoginInterceptorTest {
     private final LoginInterceptor interceptor = new LoginInterceptor();
 
     @Test
+    // 验证未授权请求重定向到登录界面
     void unauthenticatedRequestRedirectsToLogin() throws Exception {
+        // spring框架内置的mock库
         MockHttpServletRequest request = new MockHttpServletRequest();
+
         request.setContextPath("/monahub");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -29,6 +32,7 @@ class LoginInterceptorTest {
     }
 
     @Test
+    // 已授权的请求通过
     void authenticatedRequestPasses() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setContextPath("/monahub");
@@ -36,10 +40,11 @@ class LoginInterceptorTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         assertTrue(interceptor.preHandle(request, response, new Object()));
-        assertNull(response.getRedirectedUrl());
+        assertNull(response.getRedirectedUrl()); // 不重定向
     }
 
     @Test
+    // 验证未授权的请求返回JSON格式的401并重定向
     void unauthenticatedApiRequestReturns401JsonNotRedirect() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setContextPath("/monahub");
@@ -54,6 +59,7 @@ class LoginInterceptorTest {
     }
 
     @Test
+    // 验证未授权的单文件请求也返回401
     void unauthenticatedApiSingleResourceAlsoReturns401() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setContextPath("/monahub");
