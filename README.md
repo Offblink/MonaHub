@@ -95,14 +95,16 @@ mysql -u root -p < sql/02_data.sql
 
 ### 3.3 数据库口令（不入库）
 
-复制模板并填入本机口令：
+手动创建 `src/main/resources/common/db.properties`，按下面四项填入本机口令：
 
-```bash
-cp src/main/resources/common/db.properties.example src/main/resources/common/db.properties
-# 编辑 db.properties 的 jdbc.password
+```properties
+jdbc.driver=com.mysql.cj.jdbc.Driver
+jdbc.url=jdbc:mysql://localhost:3306/submission_hub?useSSL=false&serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
+jdbc.username=root
+jdbc.password=填本机口令
 ```
 
-`db.properties` 已在 `.gitignore` 中；仓库里只有 `CHANGE_ME` 的模板 —— 真实口令绝不入库。
+`db.properties` 已在 `.gitignore` 中 —— 真实口令绝不入库。
 
 ### 3.4 启动
 
