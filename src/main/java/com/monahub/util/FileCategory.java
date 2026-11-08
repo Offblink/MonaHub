@@ -14,6 +14,7 @@ import java.util.Set;
  */
 public enum FileCategory {
 
+    // 枚举
     DOC("doc", "文档", "pdf", "doc", "docx"),
     IMAGE("image", "图片", "jpg", "jpeg", "png"),
     ARCHIVE("archive", "压缩包", "zip");

@@ -30,8 +30,10 @@ public class DownloadLogAspect {
     }
 
     @AfterReturning(
+            // AOP绑定在哪都行，还可以传递参数
             pointcut = "execution(* com.monahub.service.FileService.afterDownload(..)) "
                     + "&& args(fileId, downloaderId, ip)")
+    // 的确使用了上面三个参数
     public void record(Long fileId, Long downloaderId, String ip) {
         try {
             downloadLogService.record(fileId, downloaderId, ip);

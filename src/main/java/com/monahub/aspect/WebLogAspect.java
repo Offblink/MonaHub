@@ -21,15 +21,20 @@ public class WebLogAspect {
 
     private static final Logger log = LoggerFactory.getLogger(WebLogAspect.class);
 
+    // 这里定义一个控制层，绑定所有controller下的方法
     @Pointcut("execution(* com.monahub.controller..*(..))")
     public void controllerLayer() {
     }
 
+    // 围绕上面定义的控制层
     @Around("controllerLayer()")
     public Object around(ProceedingJoinPoint pjp) throws Throwable {
-        String method = pjp.getSignature().toShortString();
+        String method = pjp.getSignature().toShortString(); // 获得简短的方法签名
         long start = System.currentTimeMillis();
+
+        // 输出日志，花括号按序填入
         log.info("[REQ] {} 参数: {}", method, Arrays.toString(pjp.getArgs()));
+
         try {
             Object result = pjp.proceed();
             log.info("[RESP] {} 耗时: {}ms", method, System.currentTimeMillis() - start);
