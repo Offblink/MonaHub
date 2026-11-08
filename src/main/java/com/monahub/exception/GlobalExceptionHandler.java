@@ -40,7 +40,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public String handleOther(Exception e, HttpServletResponse response, Model model) {
-        log.error("未捕获异常", e);
+        log.error("未知异常", e);
         response.setStatus(500);
         model.addAttribute("code", 500);
         model.addAttribute("message", "服务器开小差了，请稍后再试");

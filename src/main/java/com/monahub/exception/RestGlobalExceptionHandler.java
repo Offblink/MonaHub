@@ -52,7 +52,7 @@ public class RestGlobalExceptionHandler {
     /** 兜底：堆栈只进日志，对外统一文案，不暴露内部结构。 */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Void>> handleOther(Exception e) {
-        log.error("API 未捕获异常", e);
+        log.error("未知异常", e);
         return ResponseEntity.status(500).body(Result.fail(500, "系统繁忙，请稍后重试"));
     }
 }
