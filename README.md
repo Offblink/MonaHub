@@ -26,6 +26,7 @@ GSAP 3.12.7 已 vendored 到 `static/vendor/`，**运行期不依赖任何 CDN**
 | 分页 | MyBatis-Plus PaginationInnerInterceptor（XML 分页 SQL 自动加 LIMIT 与 count） | 3.5.5 / jsqlparser 4.6 |
 | 口令 | Spring Security Crypto · BCryptPasswordEncoder | 5.7.11 |
 | 参数校验 | Hibernate Validator（JSR-303，`@Valid` + 注解） | 6.2.5.Final（javax 栈；EL 用 tomcat-embed-el provided） |
+| 样板代码 | Lombok（`@Getter`/`@Setter`；**不用 `@Data`**，保留默认 equals/hashCode，避免实体比较语义变化） | 1.18.34（provided，编译期处理器；IDEA 需装 Lombok 插件并开启注解处理） |
 | 连接池 | HikariCP | 4.0.3 |
 | 数据库 | MySQL（utf8mb4） | 5.7+（本机 9.3 实测） |
 | 视图 | JSP + JSTL | servlet-api 4.0.1 / jstl 1.2 |

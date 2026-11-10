@@ -29,6 +29,8 @@
         <jackson.version>2.15.4</jackson.version>
         <aspectj.version>1.9.22</aspectj.version>
         <junit.version>5.11.0</junit.version>
+        <!-- Lombok：编译期生成 getter/setter（provided，不进 war；IDEA 需装 Lombok 插件并开启注解处理） -->
+        <lombok.version>1.18.34</lombok.version>
 
         <!-- 本机 8080 被常驻服务占用，演示统一用 18080；可 -Dcargo.servlet.port=8080 覆盖 -->
         <cargo.servlet.port>18080</cargo.servlet.port>
@@ -83,7 +85,7 @@
             <version>1.2</version>
         </dependency>
 
-        <!-- ================= MyBatis + Spring 整合桥 ================= -->
+        <!-- ================= MyBatis + Spring ================= -->
         <dependency>
             <groupId>org.mybatis</groupId>
             <artifactId>mybatis</artifactId>
@@ -198,6 +200,14 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
             <version>1.7.36</version>
+        </dependency>
+
+        <!-- ================= Lombok：@Getter/@Setter 消除实体/DTO 样板代码（provided，编译期处理器，不打进 war） ================= -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- ================= 测试 ================= -->

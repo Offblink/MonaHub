@@ -1,9 +1,14 @@
 package com.monahub.dto;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * 单个文件的上传结果。多文件上传时逐条返回，页面上逐条显示成功/失败原因，
  * 不用一个整体成功/失败掩盖半成功。
  */
+@Getter
+@Setter
 public class UploadResult {
 
     private String name;
@@ -30,37 +35,5 @@ public class UploadResult {
     public static UploadResult duplicate(String name, String existingName) {
         return new UploadResult(name, false, true,
                 "与已提交的「" + existingName + "」内容相同，已跳过重复上传");
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public boolean isOk() {
-        return ok;
-    }
-
-    public boolean isDuplicate() {
-        return duplicate;
-    }
-
-    public void setDuplicate(boolean duplicate) {
-        this.duplicate = duplicate;
-    }
-
-    public void setOk(boolean ok) {
-        this.ok = ok;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
     }
 }

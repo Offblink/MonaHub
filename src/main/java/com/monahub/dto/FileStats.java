@@ -1,8 +1,11 @@
 package com.monahub.dto;
 
+import lombok.Getter;
+
 /**
  * 工作台顶部统计条：文件总数 / 本月新增 / 累计下载。
  */
+@Getter
 public class FileStats {
 
     private final long total;
@@ -13,17 +16,5 @@ public class FileStats {
         this.total = total;
         this.monthNew = monthNew;
         this.downloads = downloads;
-    }
-
-    public long getTotal() {
-        return total;
-    }
-
-    public long getMonthNew() {
-        return monthNew;
-    }
-
-    public long getDownloads() {
-        return downloads;
     }
 }
