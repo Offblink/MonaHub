@@ -224,12 +224,17 @@ public class FileController {
                           HttpServletResponse response,
                           HttpSession session) throws IOException {
         SysUser user = currentUser(session);
+
+        // 这个方法会返回一个文件（信息）
         FileInfo file = fileService.openForDownload(id, user.getId());
+
         Path path = storageService.resolve(file.getFilePath());
         if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
             response.sendError(HttpServletResponse.SC_NOT_IMPLEMENTED, "当前环境不支持本地打开");
             return;
         }
+
+        // 使用这个方法，传入路径后，可以使用系统默认方法打开文件
         Desktop.getDesktop().open(path.toFile());
         response.setStatus(HttpServletResponse.SC_NO_CONTENT);
     }

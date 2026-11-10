@@ -34,7 +34,7 @@ import java.util.concurrent.ThreadPoolExecutor;
         encoding = "UTF-8")
 @ComponentScan(basePackages = {"com.monahub.service", "com.monahub.aspect"})
 @EnableAspectJAutoProxy
-@EnableTransactionManagement // 声明式事务
+@EnableTransactionManagement // 启动声明式事务
 @MapperScan("com.monahub.mapper")
 public class SpringConfig {
 

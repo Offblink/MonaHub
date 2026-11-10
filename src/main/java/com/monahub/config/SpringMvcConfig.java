@@ -125,6 +125,7 @@ public class SpringMvcConfig implements WebMvcConfigurer {
      * </ul>
      */
     @Bean
+    // 直接使用spring 的multipart并发上传文件
     public CommonsMultipartResolver multipartResolver() {
         CommonsMultipartResolver resolver = new CommonsMultipartResolver();
         resolver.setDefaultEncoding("UTF-8");
