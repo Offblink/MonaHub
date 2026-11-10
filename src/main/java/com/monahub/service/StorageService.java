@@ -30,11 +30,12 @@ public class StorageService {
 
     private static final Logger log = LoggerFactory.getLogger(StorageService.class);
 
-    private final Path root;
+    private final Path root; // 根路径
 
     /**
      * @param configuredRoot upload.root；留空时落到 {@code ${user.home}/SubmissionHub/upload}
      */
+    // 用于初始化root
     public StorageService(@Value("${upload.root:}") String configuredRoot) {
         String value = configuredRoot == null ? "" : configuredRoot.trim();
         if (value.isEmpty()) {
@@ -46,6 +47,7 @@ public class StorageService {
     }
 
     @PostConstruct
+    // 这是一个我们没有学习的注解：它的作用是在依赖注入以前执行此方法
     public void init() throws IOException {
         Files.createDirectories(root);
         log.info("上传根目录: {}", root);
@@ -61,7 +63,7 @@ public class StorageService {
      */
     public StoredFile save(MultipartFile file, String username, String originName) throws IOException {
         String ext = FileNames.extOf(originName);
-        String storeName = FileNames.storeName(ext);
+        String storeName = FileNames.storeName(ext); // 得到转换后的文件名
 
         LocalDate today = LocalDate.now();
         String relativeDir = safeSegment(username) + "/" + today.getYear()
@@ -71,6 +73,7 @@ public class StorageService {
         Files.createDirectories(dir);
         Path target = withinRoot(relativeDir + "/" + storeName);
 
+        // 这是啥
         file.transferTo(target.toFile());
 
         return new StoredFile(originName, storeName, relativeDir + "/" + storeName,
@@ -81,6 +84,7 @@ public class StorageService {
      * 落盘（API 用）：字节直写，目录规则与 {@link #save} 完全一致。
      * contentType 由文件系统探测，探测不到就留空（下载时回退 octet-stream）。
      */
+    // 有了save为什么还要这个方法？
     public StoredFile saveBytes(byte[] data, String username, String originName) throws IOException {
         String ext = FileNames.extOf(originName);
         String storeName = FileNames.storeName(ext);
@@ -141,6 +145,7 @@ public class StorageService {
     }
 
     private Path withinRoot(String relative) {
+        // 将相对路径格式化后再转为绝对路径
         Path candidate = root.resolve(relative.replace('\\', '/')).normalize();
         if (!candidate.startsWith(root)) {
             throw new BusinessException(403, "非法的文件路径");

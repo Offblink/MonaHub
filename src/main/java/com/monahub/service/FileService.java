@@ -262,6 +262,7 @@ public class FileService {
     // 我的理解是：分页列表作为一个最大的筛选条件，需要综合上传者、过滤类型、搜索关键词、当前页数等等信息
     public Page<FileInfo> list(Long uploaderId, String categoryKey, String keyword,
                                int pageNo, int pageSize) {
+        // FileCategory是一个枚举类，byKey返回枚举类实例对象
         FileCategory category = FileCategory.byKey(categoryKey);
         List<String> exts = category == null ? null : category.extensionList();
         String q = keyword == null ? null : keyword.trim();
@@ -269,12 +270,12 @@ public class FileService {
             q = null;
         }
 
-        int current = Math.max(1, pageNo);
-        int size = Math.min(MAX_PAGE_SIZE, Math.max(1, pageSize));
+        int current = Math.max(1, pageNo); // 当前页数不小于1
+        int size = Math.min(MAX_PAGE_SIZE, Math.max(1, pageSize)); // 卡片个数不大于容量
         Page<FileInfo> page = new Page<>(current, size);
 
         List<FileInfo> records = fileInfoMapper.selectPageQuery(page, uploaderId, exts, q);
-        page.setRecords(records);
+        page.setRecords(records); // mp 内置方法
 
         // 删除/筛选后页码越界：回退到最后一页再查一次，避免用户看到空白页
         if (records.isEmpty() && current > 1 && page.getTotal() > 0
@@ -285,6 +286,7 @@ public class FileService {
         return page;
     }
 
+    // 文件状态
     public FileStats stats(Long uploaderId) {
         LocalDateTime monthStart = LocalDate.now().withDayOfMonth(1).atStartOfDay();
         return new FileStats(
@@ -298,8 +300,8 @@ public class FileService {
      * 页面顶部胶囊直接显示各类数量。
      */
     public Map<String, Integer> countsByCategory(Long uploaderId) {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        counts.put("all", 0);
+        Map<String, Integer> counts = new LinkedHashMap<>(); // 链式映射
+        counts.put("all", 0); // 先初始化所有类别为0
         for (FileCategory category : FileCategory.values()) {
             counts.put(category.key(), 0);
         }
@@ -310,7 +312,7 @@ public class FileService {
             total += row.getCnt();
             FileCategory category = FileCategory.of(row.getExt());
             String key = category == null ? "other" : category.key();
-            counts.merge(key, row.getCnt(), Integer::sum);
+            counts.merge(key, row.getCnt(), Integer::sum); // 这是啥
         }
         counts.put("all", total);
         return counts;
@@ -322,8 +324,7 @@ public class FileService {
 
     /**
      * 重命名：只改展示名 origin_name，磁盘 UUID 名不动。
-     * 允许只输入主名（自动补原扩展名），但不允许改扩展名 —— 否则会出现
-     * "名字是 .pdf、内容其实是 exe" 的欺骗面。
+     * 允许只输入主名（自动补原扩展名），但不允许改扩展名
      */
     @Transactional(rollbackFor = Exception.class)
     public void rename(Long id, Long uploaderId, String newName) {
@@ -332,13 +333,13 @@ public class FileService {
             throw new BusinessException(404, "文件不存在或无权操作");
         }
 
-        String name = FileNames.sanitize(newName);
+        String name = FileNames.sanitize(newName); //清洗文件名
         if (name == null || name.isBlank()) {
             throw new BusinessException(400, "文件名不能为空");
         }
 
         String ext = file.getExt();
-        String newExt = FileNames.extOf(name);
+        String newExt = FileNames.extOf(name); // 自己识别拓展名
         if (newExt.isEmpty()) {
             name = name + "." + ext;
         } else if (!newExt.equalsIgnoreCase(ext)) {
@@ -368,6 +369,7 @@ public class FileService {
      * 批量逻辑删除（API）：先全量校验归属，任一不存在则整批不动——
      * 避免"删了一半"的中间态；事务保证后半程失败时整体回滚。
      */
+    // 保持批量删除的原子操作
     @Transactional(rollbackFor = Exception.class)
     public int deleteBatch(List<Long> ids, Long uploaderId) {
         if (ids == null || ids.isEmpty()) {
@@ -386,7 +388,7 @@ public class FileService {
         return deleted;
     }
 
-    /** 单条查询（API）：只按归属取，不校验冻结与磁盘（那是下载前的事）。 */
+    /** 单条查询（API）：按归属取 */
     public FileInfo get(Long id, Long uploaderId) {
         FileInfo file = findOwnFile(id, uploaderId);
         if (file == null) {
@@ -397,22 +399,21 @@ public class FileService {
 
     /**
      * JSON 上传（API）：与表单上传同一条链路——服务端校验 → MD5 去重 →
-     * 落盘 → 入库，入库失败删掉刚写的文件（补偿），保证
-     * "库里有记录 ⇔ 磁盘有文件"。
+     * 落盘 → 入库，入库失败删掉刚写的文件（补偿），保证"库里有记录 ⇔ 磁盘有文件"。
      *
      * @param base64Content 文件内容的 Base64 编码；解码前先按 4/3 膨胀率
      *                       预估上限，避免超大 body 撑爆内存
      */
     @Transactional(rollbackFor = Exception.class)
     public FileInfo create(SysUser user, String rawName, String base64Content) {
-        long maxBase64Chars = (maxSize + 2) / 3 * 4 + 4;
+        long maxBase64Chars = (maxSize + 2) / 3 * 4 + 4; // 这为啥
         if (base64Content.length() > maxBase64Chars) {
             throw new BusinessException(400,
                     "文件超过 " + FileNames.sizeText(maxSize) + " 上限");
         }
         byte[] content;
         try {
-            content = Base64.getDecoder().decode(base64Content);
+            content = Base64.getDecoder().decode(base64Content); // 解码
         } catch (IllegalArgumentException e) {
             throw new BusinessException(400, "content 不是合法的 Base64 编码");
         }
@@ -464,6 +465,7 @@ public class FileService {
     /** 冻结 = status 0，解冻 = status 1；WHERE 带 uploader_id，改不到别人的记录。 */
     @Transactional(rollbackFor = Exception.class)
     public void freeze(Long id, Long uploaderId, boolean frozen) {
+        // 巧妙地传入三目运算符
         int updated = fileInfoMapper.updateStatus(id, uploaderId, frozen ? 0 : 1);
         if (updated == 0) {
             throw new BusinessException(404, "文件不存在或无权操作");

@@ -63,7 +63,7 @@ public enum FileCategory {
         }
         for (FileCategory category : values()) {
             if (category.key.equalsIgnoreCase(key)) {
-                return category;
+                return category; // 传入字符串类型的分类，传出枚举类的实例分类
             }
         }
         return null;
