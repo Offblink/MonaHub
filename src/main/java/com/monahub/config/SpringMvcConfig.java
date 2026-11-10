@@ -19,6 +19,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
 
 import java.util.List;
+import org.springframework.http.CacheControl;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 
@@ -84,7 +85,11 @@ public class SpringMvcConfig implements WebMvcConfigurer {
     /** 静态资源（原 &lt;mvc:resources mapping="/static/**" location="/static/"/&gt;）。 */
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/static/**").addResourceLocations("/static/");
+        // no-cache 不是不缓存，而是每次必须带 ETag/Last-Modified 回源校验（未变则 304）：
+        // 否则浏览器按启发式缓存吃旧 CSS/JS，改了前端（如批量删除的勾选框/网格）页面仍是旧样式
+        registry.addResourceHandler("/static/**")
+                .addResourceLocations("/static/")
+                .setCacheControl(CacheControl.noCache());
     }
 
     /**
