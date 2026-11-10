@@ -570,10 +570,109 @@
         });
     }
 
+    /* ---------------- 多选：勾选 + 批量删除 ---------------- */
+    var listEl = document.getElementById('fileList');
+    var multiBtn = document.getElementById('multiBtn');
+    var batchBar = document.getElementById('batchBar');
+    var batchCount = document.getElementById('batchCount');
+    var batchForm = document.getElementById('batchForm');
+    var batchIds = document.getElementById('batchIds');
+    var batchDeleteBtn = document.getElementById('batchDeleteBtn');
+    var batchCancelBtn = document.getElementById('batchCancelBtn');
+
+    if (listEl && multiBtn && batchBar) {
+        setupBatchSelect();
+    }
+
+    function setupBatchSelect() {
+        function checks() {
+            return listEl.querySelectorAll('.js-row-check');
+        }
+
+        function chosen() {
+            return Array.prototype.filter.call(checks(), function (cb) {
+                return cb.checked;
+            });
+        }
+
+        function sync() {
+            var count = chosen().length;
+            batchCount.textContent = '已选 ' + count + ' 项';
+            batchDeleteBtn.disabled = count === 0;
+            batchForm.dataset.batchCount = String(count);
+            Array.prototype.forEach.call(listEl.querySelectorAll('.row'), function (row) {
+                var cb = row.querySelector('.js-row-check');
+                row.classList.toggle('is-selected', !!(cb && cb.checked));
+            });
+        }
+
+        function exit() {
+            listEl.classList.remove('is-multiselect');
+            multiBtn.textContent = '多选';
+            multiBtn.setAttribute('aria-pressed', 'false');
+            batchBar.hidden = true;
+            Array.prototype.forEach.call(checks(), function (cb) {
+                cb.checked = false;
+            });
+            sync();
+        }
+
+        multiBtn.addEventListener('click', function () {
+            if (listEl.classList.contains('is-multiselect')) {
+                exit();
+                return;
+            }
+            listEl.classList.add('is-multiselect');
+            multiBtn.textContent = '取消多选';
+            multiBtn.setAttribute('aria-pressed', 'true');
+            batchBar.hidden = false;
+            sync();
+        });
+
+        if (batchCancelBtn) {
+            batchCancelBtn.addEventListener('click', exit);
+        }
+
+        listEl.addEventListener('change', function (event) {
+            var cb = event.target;
+            if (cb && cb.classList && cb.classList.contains('js-row-check')) {
+                sync();
+            }
+        });
+
+        // 提交前把勾选的 id 灌进表单；确认弹窗由共用模态负责
+        batchForm.addEventListener('submit', function () {
+            batchIds.innerHTML = '';
+            chosen().forEach(function (cb) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'ids';
+                input.value = cb.value;
+                batchIds.appendChild(input);
+            });
+        });
+
+        // 搜索局部刷新（innerHTML 整体替换）后勾选状态清零
+        if (window.MutationObserver) {
+            new MutationObserver(sync).observe(listEl, { childList: true });
+        }
+    }
+
     /* ---------------- 点击文件卡片 → 服务端用系统默认程序本地打开 ---------------- */
     document.addEventListener('click', function (event) {
         if (event.button !== 0 || event.defaultPrevented) {
             return;
+        }
+        // 多选模式：点卡片本体 = 勾选/取消勾选；按钮、链接、表单仍按原行为
+        if (listEl && listEl.classList.contains('is-multiselect')
+                && event.target.closest
+                && !event.target.closest('a, button, form, input, label, select, textarea')) {
+            var toggledRow = event.target.closest('.row');
+            var toggledCheck = toggledRow ? toggledRow.querySelector('.js-row-check') : null;
+            if (toggledCheck) {
+                toggledCheck.click();
+                return;
+            }
         }
         var row = event.target.closest ? event.target.closest('.row[data-open-url]') : null;
         if (!row || row.getAttribute('data-frozen') === 'true') {
@@ -670,6 +769,19 @@
                 event.preventDefault();
                 pendingForm = form;
                 mode = form.dataset.kind || 'freeze';
+
+                if (mode === 'batch-delete') {
+                    title.textContent = '删除选中的 ' + (form.dataset.batchCount || '0') + ' 个文件？';
+                    text.textContent = '删除后列表与统计中不再显示。';
+                    fileEl.textContent = '';
+                    fileEl.hidden = true;
+                    input.hidden = true;
+                    hint.hidden = true;
+                    okBtn.textContent = '确认删除';
+                    setConfirmStyle('danger');
+                    openModal();
+                    return;
+                }
 
                 var action = form.dataset.action || '确认';
                 title.textContent = action + '该文件？';

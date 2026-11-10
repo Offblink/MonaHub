@@ -161,6 +161,20 @@ public class FileController {
         return backToList(redirectAttributes, category, keyword, pageNo, pageSize);
     }
 
+    /** 批量逻辑删除（页面多选）：任一 id 不存在/越权则整批不动，原子性由 Service 保证。 */
+    @PostMapping("/batch-delete")
+    public String deleteBatch(@RequestParam(value = "ids", required = false) List<Long> ids,
+                              @RequestParam(value = "category", defaultValue = "all") String category,
+                              @RequestParam(value = "q", defaultValue = "") String keyword,
+                              @RequestParam(value = "page", defaultValue = "1") int pageNo,
+                              @RequestParam(value = "size", defaultValue = "" + DEFAULT_PAGE_SIZE) int pageSize,
+                              HttpSession session,
+                              RedirectAttributes redirectAttributes) {
+        SysUser user = currentUser(session);
+        fileService.deleteBatch(ids, user.getId());
+        return backToList(redirectAttributes, category, keyword, pageNo, pageSize);
+    }
+
     /**
      * 下载：只认 fileId。磁盘路径从数据库取，绝不接收客户端传入的文件名/路径。
      */

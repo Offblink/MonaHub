@@ -180,6 +180,9 @@ registry.addInterceptor(new LoginInterceptor())
   必须保持原扩展名（只给主名会自动补），杜绝"名字是 .pdf、内容其实是 exe"的欺骗面；仅本人可改。
 - **逻辑删除**：`POST /files/{id}/delete`，`deleted = 1`；记录与磁盘文件保留（管理员可恢复/清理），
   但列表、统计、下载、改名全部过滤掉，删除后直连下载 id 返回 404。
+- **批量逻辑删除（页面多选）**：工作台点「多选」→ 每行左侧出现勾选框（点卡片本体也可切换勾选）→「删除选中」→
+  确认模态 → `POST /files/batch-delete`（`ids` 多值 + 当前分类/关键字/页码）；与 API 批量删除共用同一
+  `FileService.deleteBatch`——先全量校验归属，任一不存在/越权则整批不动。
 - 两者都带 `uploader_id` 条件，改不到/删不到别人的记录。
 
 ### 4.5 下载安全
@@ -207,6 +210,7 @@ fileId → WHERE id=? AND uploader_id=? → 冻结判断 → 磁盘存在判断 
 | POST | `/files/{id}/freeze` | `frozen=1` 冻结 / `0` 解冻（仅本人） |
 | POST | `/files/{id}/rename` | 重命名展示名（`newName`，扩展名不可改） |
 | POST | `/files/{id}/delete` | 逻辑删除（仅本人） |
+| POST | `/files/batch-delete` | 批量逻辑删除（`ids` 多值 + 当前筛选参数；与 API 同一原子性） |
 | GET | `/files/{id}/download` | 下载（仅本人、非冻结、未删除） |
 | GET | `/error` | 友好错误页（容器 404/500 也转发到这里） |
 

@@ -157,6 +157,27 @@
                    placeholder="搜索文件名…" aria-label="搜索文件名">
             <button type="submit" class="btn btn-ghost btn-sm">搜索</button>
         </form>
+
+        <c:if test="${not empty files}">
+            <button type="button" class="btn btn-ghost btn-sm" id="multiBtn" aria-pressed="false">多选</button>
+        </c:if>
+    </section>
+
+    <!-- ==================== 多选批量操作 ==================== -->
+    <section class="batch-bar card" id="batchBar" hidden aria-label="批量操作">
+        <span class="batch-count" id="batchCount">已选 0 项</span>
+        <div class="batch-actions">
+            <form id="batchForm" method="post" action="${ctx}/files/batch-delete"
+                  class="inline-form js-action-form" data-kind="batch-delete" data-batch-count="0">
+                <input type="hidden" name="category" value="${category}">
+                <input type="hidden" name="q" value="${fn:escapeXml(keyword)}">
+                <input type="hidden" name="page" value="${page.current}">
+                <input type="hidden" name="size" value="${pageSize}">
+                <span id="batchIds"></span>
+                <button type="submit" class="btn btn-danger btn-sm" id="batchDeleteBtn" disabled>删除选中</button>
+            </form>
+            <button type="button" class="btn btn-ghost btn-sm" id="batchCancelBtn">取消</button>
+        </div>
     </section>
 
     <!-- ==================== 文件列表 ==================== -->
@@ -182,6 +203,7 @@
             </c:when>
             <c:otherwise>
                 <div class="list-head" aria-hidden="true">
+                    <span class="row-check"></span>
                     <span>文件</span>
                     <span>大小</span>
                     <span>上传时间</span>
@@ -194,6 +216,10 @@
                     <article class="row" data-cat="${f.categoryKey}"
                              data-open-url="${ctx}/files/${f.id}/open"
                              data-frozen="${f.frozen}">
+                        <label class="row-check" title="选择该文件">
+                            <input type="checkbox" class="js-row-check" value="${f.id}"
+                                   aria-label="选择 ${fn:escapeXml(f.originName)}">
+                        </label>
                         <div class="cell file-cell">
                             <span class="type-ico" data-cat="${f.categoryKey}">
                                 <c:out value="${fn:toUpperCase(f.ext)}"/>

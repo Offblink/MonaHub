@@ -1077,6 +1077,63 @@ button {
     gap: 8px;
 }
 
+/* 多选批量删除 */
+.row-check {
+    display: none;
+}
+
+#fileList.is-multiselect .list-head,
+#fileList.is-multiselect .row {
+    grid-template-columns: 26px minmax(0, 1fr) 92px 148px 96px 64px 300px;
+}
+
+#fileList.is-multiselect .row-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.row-check input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--green);
+    cursor: pointer;
+}
+
+.row.is-selected {
+    background: rgba(74, 222, 128, 0.07);
+}
+
+:root[data-theme="light"] .row.is-selected {
+    background: rgba(21, 128, 61, 0.07);
+}
+
+.batch-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+}
+
+.batch-bar[hidden] {
+    display: none;
+}
+
+.batch-count {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--fg-dim);
+}
+
+.batch-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .btn-quiet-danger {
     color: var(--fg-dim);
 }
@@ -1312,6 +1369,18 @@ button {
     .row-actions {
         grid-column: 1 / -1;
         justify-content: flex-start;
+    }
+
+    #fileList.is-multiselect .row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding-left: 44px;
+    }
+
+    #fileList.is-multiselect .row .row-check {
+        position: absolute;
+        left: 14px;
+        top: 16px;
+        display: flex;
     }
 
     .cell-muted::before {
