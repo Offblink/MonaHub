@@ -2,6 +2,16 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 
+rem 已有实例在监听 18080 时，clean 会被其日志句柄挡住（Failed to delete monahub.log）——先检测再动手
+netstat -ano | findstr ":18080" | findstr "LISTENING" >nul
+if not errorlevel 1 (
+    echo 检测到 18080 已被占用：已有 MonaHub 实例在运行（停止 = 关闭 MonaHub-Tomcat 窗口）。
+    echo 如需重启：先关闭旧窗口，再运行本脚本。
+    start "" http://127.0.0.1:18080/monahub/
+    pause
+    exit /b 0
+)
+
 echo [1/3] 打包（跳过测试）...
 call mvn -B -DskipTests clean package
 if errorlevel 1 (
