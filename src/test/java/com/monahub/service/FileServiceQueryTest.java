@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 查询 / 分页 / 重命名 / 逻辑删除 / 冻结 / 下载校验的集成测试。
  *
- * <p>依赖本机 MySQL 的 submission_hub（sql/01_schema.sql + 02_data.sql 已导入）；
+ * <p>依赖本机 MySQL 的 submission_hub（sql/init.sql 已导入）；
  * 测试类带 @Transactional，所有写库操作在用例结束后回滚，不污染演示数据。</p>
  *
  * <p>注意：多文件上传走线程池、独立事务，不在测试事务内，
@@ -58,7 +58,7 @@ class FileServiceQueryTest {
     void setUp() {
         zhangsan = userService.login("zhangsan", "123456");
         lisi = userService.login("lisi", "123456");
-        assertNotNull(zhangsan, "需要先导入 sql/02_data.sql 的演示账号");
+        assertNotNull(zhangsan, "需要先导入 sql/init.sql 的演示账号");
         assertNotNull(lisi);
     }
 

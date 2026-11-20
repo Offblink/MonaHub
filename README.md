@@ -46,10 +46,7 @@ GSAP 3.12.7 已 vendored 到 `static/vendor/`，**运行期不依赖任何 CDN**
 MonaHub/
 ├─ pom.xml                     # war + 依赖版本 + cargo 本地 Tomcat 启动
 ├─ sql/
-│  ├─ 01_schema.sql            # 建库建表（sys_user / file_info / download_log）
-│  ├─ 02_data.sql              # 演示账号（BCrypt 哈希，可重复执行）
-│  ├─ 03_migrate_bcrypt_soft_delete.sql  # 旧库增量迁移（已有库才需要）
-│  └─ 04_add_md5.sql            # 旧库补 md5 列（已有库才需要）
+│  └─ init.sql                 # 建库建表 + 演示账号，一次导入（已合并旧 01~04 全部内容）
 ├─ docs/
 │  └─ SSM实训-设计方案与规格.md  # 设计规格（动手前定稿）
 └─ src/
@@ -90,8 +87,7 @@ MonaHub/
 ### 3.2 建库与演示账号
 
 ```bash
-mysql -u root -p < sql/01_schema.sql
-mysql -u root -p < sql/02_data.sql
+mysql -u root -p < sql/init.sql
 ```
 
 ### 3.3 数据库口令（不入库）

@@ -44,7 +44,7 @@ class TxRollbackTest {
     @Test
     void insertThenExceptionRollsBackRow() {
         SysUser zhangsan = userService.login("zhangsan", "123456");
-        assertNotNull(zhangsan, "需要先导入 sql/02_data.sql 的演示账号");
+        assertNotNull(zhangsan, "需要先导入 sql/init.sql 的演示账号");
 
         FileInfo meta = newMeta(zhangsan.getId());
         TransactionTemplate template = new TransactionTemplate(transactionManager);

@@ -94,8 +94,7 @@ flowchart TD
 SubmissionHub/
 ├─ pom.xml                        # war · JDK8 · Spring 4.3.30 · cargo:run(本地 Tomcat)
 ├─ README.md                      # 启动说明 / 账号 / 设计说明 / 拓展项
-├─ sql/01_schema.sql              # 建库建表（utf8mb4、索引）
-├─ sql/02_data.sql                # 演示账号（密文+盐）
+├─ sql/init.sql                   # 建库建表 + 演示账号（已合并全部补丁）
 ├─ docs/spec.md                   # 本文件副本
 ├─ src/main/java/com/submissionhub/
 │  ├─ config/WebConfig.java                 # addInterceptors + mvc:resources 配套
@@ -405,12 +404,12 @@ upload.allowed-ext=pdf,jpg,jpeg,png,doc,docx,zip
 | 界面 | 操作列 4 个动作（下载/冻结/重命名/删除），表头与按钮右对齐；移除登录页与工作台的三处说明文案 |
 | 病毒扫描 | 明确不做（用户指定） |
 
-数据库迁移脚本：`sql/03_migrate_bcrypt_soft_delete.sql`（已有库执行一次；全新库直接跑 01 + 02）。
+数据库脚本已合并为 `sql/init.sql`：建库建表 + 演示账号一次导入，补丁（BCrypt/逻辑删除/MD5）已全部融入主线；已有旧库需先备份，再按 init.sql 重建。
 
 ### 12.1 追加：重复上传去重（MD5）
 
 任务书课后拓展第 4 条的补做：上传前对内容算 MD5，同一账号、`deleted = 0` 的记录里命中即
 **跳过落盘与入库**并提示「与已提交的『xxx』内容相同」；已删除记录不参与去重。
-数据库加 `file_info.md5` 与 `idx_uploader_md5`，迁移脚本 `sql/04_add_md5.sql`。
+数据库加 `file_info.md5` 与 `idx_uploader_md5`，已并入 `sql/init.sql` 主线。
 因为是"先查重再写"，不存在先写后回滚的孤儿文件；落盘成功但入库失败的删盘补偿仍然保留。
 
