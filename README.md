@@ -228,6 +228,7 @@ fileId → WHERE id=? AND uploader_id=? → 冻结判断 → 磁盘存在判断 
 校验：JSR-303（`@Valid` + `@NotBlank/@Size/@NotNull`，hibernate-validator 6.2.5.Final）在
 `RestGlobalExceptionHandler` 统一翻译成 400 Result；服务端手写校验（扩展名白名单、大小上限）仍在 Service 层。
 接口测试用例集：`docs/apifox/monahub-api.postman_collection.json`（Apifox 导入即跑，24 条：正常/异常/分页边界）。
+导入、环境配置、Cookie 与实测截图见 [`docs/apifox/README.md`](docs/apifox/README.md)。
 
 ---
 
