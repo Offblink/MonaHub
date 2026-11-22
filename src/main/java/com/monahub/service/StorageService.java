@@ -73,7 +73,6 @@ public class StorageService {
         Files.createDirectories(dir);
         Path target = withinRoot(relativeDir + "/" + storeName);
 
-        // 这是啥
         file.transferTo(target.toFile());
 
         return new StoredFile(originName, storeName, relativeDir + "/" + storeName,
@@ -84,7 +83,6 @@ public class StorageService {
      * 落盘（API 用）：字节直写，目录规则与 {@link #save} 完全一致。
      * contentType 由文件系统探测，探测不到就留空（下载时回退 octet-stream）。
      */
-    // 有了save为什么还要这个方法？
     public StoredFile saveBytes(byte[] data, String username, String originName) throws IOException {
         String ext = FileNames.extOf(originName);
         String storeName = FileNames.storeName(ext);

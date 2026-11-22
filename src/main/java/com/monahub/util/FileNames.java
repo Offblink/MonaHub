@@ -9,6 +9,7 @@ import java.util.UUID;
  */
 public final class FileNames {
 
+    // 空构造
     private FileNames() {
     }
 

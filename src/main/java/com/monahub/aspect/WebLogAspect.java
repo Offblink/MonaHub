@@ -32,9 +32,10 @@ public class WebLogAspect {
         String method = pjp.getSignature().toShortString(); // 获得简短的方法签名
         long start = System.currentTimeMillis();
 
-        // 输出日志，花括号按序填入
+        // 输出请求日志，花括号按序填入
         log.info("[REQ] {} 参数: {}", method, Arrays.toString(pjp.getArgs()));
 
+        // 返回成功或失败的耗时
         try {
             Object result = pjp.proceed();
             log.info("[RESP] {} 耗时: {}ms", method, System.currentTimeMillis() - start);

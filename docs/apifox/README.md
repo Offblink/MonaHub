@@ -58,7 +58,7 @@ Apifox 导入时会把集合里的 `{{baseUrl}}` 收敛成「前置 URL + 路径
 http://127.0.0.1:18080/monahub  /api/files
 ```
 
-![切到开发环境后发送列表请求](screenshots/02-login-ok-list-200.png)
+![切到开发环境后发送列表请求](screenshots/登录成功（JSON）.png)
 
 ## 3. 认证：Session Cookie，不是 token
 
@@ -111,9 +111,9 @@ Body: multipart/form-data  username=zhangsan  password=123456
 | 删除 | `DELETE /api/files/539` | 200，逻辑删除 |
 | 再查询 | `GET /api/files/539` | 404「文件不存在或无权访问」 |
 
-![新增成功](screenshots/03-create-200.png)
+![新增成功](screenshots/上传文件（JSON）.png)
 
-![单条查询](screenshots/04-get-one-200.png)
+![单条查询](screenshots/获取一个文件（JSON）.png)
 
 ![重命名成功](screenshots/05-put-rename-200.png)
 
@@ -136,7 +136,7 @@ Body: multipart/form-data  username=zhangsan  password=123456
 | 不存在的 id | 404 | 404「文件不存在或无权访问」 |
 | 未登录访问 API | 401 JSON | 401 `{"code":401,"message":"未登录"}` |
 
-![分页上限夹紧](screenshots/08-pagination-clamp-200.png)
+![分页上限夹紧](screenshots/分页（JSON）.png)
 
 ![参数校验 400](screenshots/09-validation-400.png)
 

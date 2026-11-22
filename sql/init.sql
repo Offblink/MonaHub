@@ -1,25 +1,3 @@
--- ============================================================
--- MonaHub 资料提交台 · 数据库初始化（主线）
--- 目标：MySQL 5.7 及以上，字符集 utf8mb4（不使用 8.0 专有语法）
---
--- 本文件是唯一入口：建库建表 + 演示账号一次导入。
--- 旧版的 01_schema / 02_data / 03_migrate_bcrypt_soft_delete / 04_add_md5
--- 已全部合并进来，不再单独提供补丁脚本。
---
--- 设计要点：
---   1. 磁盘存文件、数据库只存元信息（禁止 BLOB，任务书硬约束）
---   2. file_path 存相对路径，绝对根来自配置 → 换机器只改配置
---   3. 口令只存 BCrypt 散列（$2a$10$...，自带随机盐），禁止明文；
---      salt 列是任务书表结构的历史字段，保留兼容、统一写空串
---   4. file_info(uploader_id) 索引：列表页恒定按上传人过滤
---   5. deleted 逻辑删除：列表/统计/下载/改名全部按 deleted = 0 过滤
---   6. md5 去重：同一上传人、未删除记录命中即跳过落盘与入库
---      （idx_uploader_md5 覆盖该查询）
---
--- 执行：mysql -u root -p < sql/init.sql
--- 可重复执行：先删表再建表，每次得到干净的演示库（已有数据会被清空）。
--- ============================================================
-
 CREATE DATABASE IF NOT EXISTS submission_hub
     DEFAULT CHARACTER SET utf8mb4
     COLLATE utf8mb4_general_ci;
@@ -31,9 +9,7 @@ DROP TABLE IF EXISTS download_log;
 DROP TABLE IF EXISTS file_info;
 DROP TABLE IF EXISTS sys_user;
 
--- ------------------------------------------------------------
 -- 用户表
--- ------------------------------------------------------------
 CREATE TABLE sys_user (
     id          BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键',
     username    VARCHAR(50) NOT NULL                COMMENT '登录账号',
@@ -45,9 +21,7 @@ CREATE TABLE sys_user (
     UNIQUE KEY uk_username (username)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '用户';
 
--- ------------------------------------------------------------
 -- 文件元信息
--- ------------------------------------------------------------
 CREATE TABLE file_info (
     id             BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键，下载只认这个 ID',
     origin_name    VARCHAR(255) NOT NULL                COMMENT '用户原始文件名，只存库',
@@ -69,9 +43,7 @@ CREATE TABLE file_info (
     CONSTRAINT fk_file_uploader FOREIGN KEY (uploader_id) REFERENCES sys_user (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '文件元信息';
 
--- ------------------------------------------------------------
 -- 下载日志（F5，课后拓展 / 本实现顺带完成）
--- ------------------------------------------------------------
 CREATE TABLE download_log (
     id            BIGINT      NOT NULL AUTO_INCREMENT,
     file_id       BIGINT      NOT NULL COMMENT '被下载的文件',
@@ -82,13 +54,7 @@ CREATE TABLE download_log (
     KEY idx_file (file_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '下载日志';
 
--- ------------------------------------------------------------
 -- 演示账号（幂等：重复导入只覆盖同名账号的口令与显示名）
---   zhangsan / 123456   张三
---   lisi     / 123456   李四
--- 口令算法：BCrypt（cost 10，$2a$ 前缀，哈希内自带随机盐）。
--- 如需改口令：用 BCrypt 生成 "$2a$10$..." 后替换下面的 password 值。
--- ------------------------------------------------------------
 INSERT INTO sys_user (username, password, salt, real_name, create_time)
 VALUES ('zhangsan',
         '$2a$10$Wcip6Fc8KzNwbFYGp./Ogu3L2KL.xiXr6RLVecyhtSu88pyJywQOe',

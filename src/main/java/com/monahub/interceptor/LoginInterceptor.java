@@ -29,7 +29,7 @@ public class LoginInterceptor implements HandlerInterceptor {
         }
 
         // JSON API（/api/**）未登录回 401 JSON，前端 fetch 直接读 code；
-        // 页面流程保持 302 回登录页。路径判断只做前缀比较，不解释请求体。
+        // 页面流程重定向到登录页。路径判断只做前缀比较，不解释请求体。
         String uri = request.getRequestURI();
         String contextPath = request.getContextPath();
 

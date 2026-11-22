@@ -312,7 +312,9 @@ public class FileService {
             total += row.getCnt();
             FileCategory category = FileCategory.of(row.getExt());
             String key = category == null ? "other" : category.key();
-            counts.merge(key, row.getCnt(), Integer::sum); // 这是啥
+
+            // 这正是按类别给计数追加进去的方法，只是我不明白它为啥要这么写
+            counts.merge(key, row.getCnt(), Integer::sum);
         }
         counts.put("all", total);
         return counts;
@@ -403,7 +405,7 @@ public class FileService {
      */
     @Transactional(rollbackFor = Exception.class)
     public FileInfo create(SysUser user, String rawName, String base64Content) {
-        long maxBase64Chars = (maxSize + 2) / 3 * 4 + 4; // 这为啥
+        long maxBase64Chars = (maxSize + 2) / 3 * 4 + 4; // n/3向上取整
         if (base64Content.length() > maxBase64Chars) {
             throw new BusinessException(400,
                     "文件超过 " + FileNames.sizeText(maxSize) + " 上限");

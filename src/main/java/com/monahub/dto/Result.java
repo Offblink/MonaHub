@@ -15,6 +15,7 @@ public class Result<T> {
     private String message;
     private T data;
 
+    // 空构造方法
     private Result() {
     }
 
@@ -27,6 +28,7 @@ public class Result<T> {
         return r;
     }
 
+    // 带状态码的失败方法
     public static <T> Result<T> fail(int code, String message) {
         Result<T> r = new Result<>();
         r.code = code;
@@ -34,6 +36,7 @@ public class Result<T> {
         return r;
     }
 
+    // 不带状态码默认服务器出错
     public static <T> Result<T> fail(String message) {
         return fail(500, message);
     }
