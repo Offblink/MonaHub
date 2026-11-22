@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -59,4 +60,12 @@ public interface FileInfoMapper extends BaseMapper<FileInfo> {
     /** 逻辑删除：deleted = 1，记录保留（磁盘文件也保留，便于管理员恢复/清理）。 */
     int softDelete(@Param("id") Long id,
                    @Param("uploaderId") Long uploaderId);
+
+    /** 批量归属校验：一次查回属于本人且未删除的 id。 */
+    List<Long> selectOwnedIds(@Param("ids") Collection<Long> ids,
+                              @Param("uploaderId") Long uploaderId);
+
+    /** 批量逻辑删除：一条 UPDATE，返回实际更新行数。 */
+    int softDeleteBatch(@Param("ids") Collection<Long> ids,
+                        @Param("uploaderId") Long uploaderId);
 }

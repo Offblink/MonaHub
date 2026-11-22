@@ -367,25 +367,22 @@ public class FileService {
 
     /**
      * 批量逻辑删除（API）：先全量校验归属，任一不存在则整批不动——
-     * 避免"删了一半"的中间态；事务保证后半程失败时整体回滚。
+     * 避免"删了一半"的中间态。
+     *
+     * <p>固定两条 SQL：{@code SELECT id IN (...)} 校验归属，{@code UPDATE ... IN (...)}
+     * 一次删除；与 ids 数量无关（原来逐 id 查一次、更新一次，是 2N 次往返）。</p>
      */
-    // 保持批量删除的原子操作
     @Transactional(rollbackFor = Exception.class)
     public int deleteBatch(List<Long> ids, Long uploaderId) {
         if (ids == null || ids.isEmpty()) {
             throw new BusinessException(400, "未指定要删除的文件");
         }
         List<Long> unique = ids.stream().distinct().toList();
-        for (Long id : unique) {
-            if (id == null || findOwnFile(id, uploaderId) == null) {
-                throw new BusinessException(404, "文件不存在或无权操作");
-            }
+        List<Long> owned = fileInfoMapper.selectOwnedIds(unique, uploaderId);
+        if (owned.size() != unique.size()) {
+            throw new BusinessException(404, "文件不存在或无权操作");
         }
-        int deleted = 0;
-        for (Long id : unique) {
-            deleted += fileInfoMapper.softDelete(id, uploaderId);
-        }
-        return deleted;
+        return fileInfoMapper.softDeleteBatch(unique, uploaderId);
     }
 
     /** 单条查询（API）：按归属取 */
