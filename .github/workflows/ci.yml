@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_ROOT_HOST: "%"
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+          --character-set-server=utf8mb4
+          --collation-server=utf8mb4_general_ci
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      # db.properties 含口令，故意不入库；CI 里按服务容器参数生成
+      - name: 生成 CI 专用 db.properties
+        run: |
+          mkdir -p src/main/resources/common
+          cat > src/main/resources/common/db.properties <<'EOF'
+          jdbc.driver=com.mysql.cj.jdbc.Driver
+          jdbc.url=jdbc:mysql://127.0.0.1:3306/submission_hub?useSSL=false&serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
+          jdbc.username=root
+          jdbc.password=root
+          EOF
+
+      # 集成测试连真实 MySQL：先把建库建表 + 演示账号导进去
+      - name: 初始化数据库
+        run: docker exec -i ${{ job.services.mysql.id }} mysql -uroot -proot < sql/init.sql
+
+      - name: 构建 + 全量测试
+        run: mvn -B verify
+
+      - name: 上传 war 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: monahub-war
+          path: target/monahub.war
+          if-no-files-found: error
+
+      # 以下两步只在推送 v* 标签时执行：打 Release 并附 war + 校验和
+      - name: 生成 war 校验和
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          sha256sum target/monahub.war | sed 's#target/##' > monahub.war.sha256
+          cat monahub.war.sha256
+
+      - name: 创建 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            target/monahub.war monahub.war.sha256

@@ -1,5 +1,7 @@
 # MonaHub · 资料提交台
 
+[![CI](https://github.com/Offblink/MonaHub/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Offblink/MonaHub/actions/workflows/ci.yml)
+
 基于 **Spring + Spring MVC + MyBatis（SSM）** 的资料上传下载系统，对应《SSM 实训案例任务书》V2.0。
 在任务书必做项（登录 / 拦截器 / 上传 / 列表 / 下载）之上，实现了老师口头加料与 F5：
 
@@ -369,3 +371,33 @@ cmp 作业.pdf downloaded.pdf && echo BYTES_OK
 | 登录后样式全丢 | 拦截器放行清单漏了 `/static/**` |
 | 上传 .exe 成功 | 白名单被改动或前端校验替代了服务端校验 —— 服务端必须兜底 |
 | 下载他人文件返回 200 | 危险信号：检查是否绕过 `selectByIdAndUploader` —— 属一票否决缺陷 |
+
+---
+
+## 12. CI/CD（GitHub Actions）
+
+工作流：`.github/workflows/ci.yml`。
+
+| 触发 | 动作 |
+|---|---|
+| push 到 `main` / Pull Request / 手动 | 构建 + 全量测试（40 条），上传 `monahub.war` 产物 |
+| 推送 `v*` 标签 | 在上面基础上创建 GitHub Release，附 `monahub.war` 与 `monahub.war.sha256` |
+
+流水线步骤（与本地等价）：
+
+1. `ubuntu-latest` + Temurin JDK 17 + Maven 缓存；
+2. 起 `mysql:5.7` 服务容器（utf8mb4，root/root）；
+3. 生成 CI 专用 `src/main/resources/common/db.properties`（该文件含口令，不入库）；
+4. `docker exec -i <mysql> mysql -uroot -proot < sql/init.sql` 初始化库与演示账号；
+5. `mvn -B verify`：单元测试 + 连真实 MySQL 的集成测试；
+6. 上传 `target/monahub.war`；
+7. 仅标签触发：`gh release create` 发布 war 与校验和。
+
+本地复现同一套检查：
+
+```bash
+mysql -u root -p < sql/init.sql
+mvn -B verify
+```
+
+> 服务端部署未纳入流水线（需要目标机与凭据）；当前 CD 交付物是可运行的 war，按 README §3 部署到 Tomcat 9 即可。
