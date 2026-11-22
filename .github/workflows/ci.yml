@@ -27,13 +27,13 @@ jobs:
           MYSQL_ROOT_HOST: "%"
         ports:
           - 3306:3306
+        # 注意：services.options 全部传给 docker create，不能写 mysqld 参数；
+        # 字符集由 sql/init.sql 的建库/建表语句显式指定 utf8mb4。
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=30
-          --character-set-server=utf8mb4
-          --collation-server=utf8mb4_general_ci
 
     steps:
       - name: 检出代码
